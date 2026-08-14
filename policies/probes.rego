@@ -21,6 +21,11 @@ violation contains v if {
 # A queue consumer pulls its own work and is never in a Service's endpoints, so demanding
 # a readiness probe from it would be a rule with no consumer — and rules that must be
 # routinely ignored teach people to ignore rules.
+#
+# `receives_traffic` (see common.rego) answers this by looking for a Service in the
+# rendered set whose selector actually matches this workload, rather than by inferring it
+# from the presence of a container port. The port heuristic fires on any workload that
+# exposes metrics, which is most of them.
 violation contains v if {
 	some c in containers
 	not c.readinessProbe
@@ -28,17 +33,9 @@ violation contains v if {
 	v := {
 		"rule": "GATE-006",
 		"severity": "block",
-		"message": sprintf("container %q exposes a port but has no readiness probe", [c.name]),
+		"message": sprintf("container %q is routed to by a Service but has no readiness probe", [c.name]),
 		"remediation": "Add a `readinessProbe`. Without one the pod joins its Service the moment the process starts, so traffic arrives before the container can serve it — which surfaces as errors during every rollout.",
 	}
-}
-
-# A container that declares a port is assumed to be routed to. This is a heuristic, and a
-# deliberately conservative one: it over-applies to a container that exposes a port purely
-# for metrics, which is a far cheaper mistake than silently exempting a real service.
-receives_traffic if {
-	some c in containers
-	count(object.get(c, "ports", [])) > 0
 }
 
 # A liveness probe that depends on a backing service turns one dependency outage into a

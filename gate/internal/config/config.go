@@ -13,9 +13,14 @@ import (
 )
 
 type Config struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Spec       Spec   `json:"spec"`
+	APIVersion string   `json:"apiVersion"`
+	Kind       string   `json:"kind"`
+	Metadata   Metadata `json:"metadata"`
+	Spec       Spec     `json:"spec"`
+}
+
+type Metadata struct {
+	Name string `json:"name"`
 }
 
 type Spec struct {

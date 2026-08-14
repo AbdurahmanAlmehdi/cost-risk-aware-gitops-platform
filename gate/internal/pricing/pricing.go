@@ -40,6 +40,10 @@ type Spec struct {
 type Rate struct {
 	Unit  string  `json:"unit"`
 	Price float64 `json:"price"`
+	// Flag marks a rate as an assumption that must be surfaced in the report rather
+	// than applied silently — used by the unknown-resource fallback, where pricing a
+	// dimension the table does not know about is a guess the reader needs to see.
+	Flag bool `json:"flag,omitempty"`
 }
 
 type Rates struct {

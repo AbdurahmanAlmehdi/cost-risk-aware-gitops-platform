@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
 
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/cost"
@@ -75,6 +76,10 @@ func New(ctx context.Context, policyDir string) (*Engine, error) {
 	r := rego.New(
 		rego.Query(query),
 		rego.Load(files, nil),
+		// Files loaded through rego.Load are parsed as Rego v0 unless the version is
+		// set explicitly, even on OPA v1.x. Without this the v1 syntax the rules are
+		// written in (`if` bodies, `some x in xs`, `contains`) fails to parse.
+		rego.SetRegoVersion(ast.RegoV1),
 		// Strict mode rejects unused variables and other latent mistakes at compile
 		// time. A rule with a typo'd variable can silently never match, and a rule
 		// that never matches is a rule that never blocks anything.
@@ -84,7 +89,54 @@ func New(ctx context.Context, policyDir string) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile policies in %s: %w", policyDir, err)
 	}
-	return &Engine{prepared: prepared}, nil
+
+	engine := &Engine{prepared: prepared}
+	if err := engine.selfTest(ctx); err != nil {
+		return nil, err
+	}
+	return engine, nil
+}
+
+// canary is a manifest that must always be rejected: it declares no resources, no probes
+// and no security context at all.
+var canary = cost.Object{
+	"apiVersion": "apps/v1",
+	"kind":       "Deployment",
+	"metadata":   map[string]any{"name": "gate-canary", "namespace": "gate-selftest"},
+	"spec": map[string]any{
+		"template": map[string]any{
+			"metadata": map[string]any{"labels": map[string]any{"app": "gate-canary"}},
+			"spec": map[string]any{
+				"containers": []any{
+					map[string]any{"name": "canary", "image": "example.invalid/canary:latest"},
+				},
+			},
+		},
+	},
+}
+
+// selfTest proves the rule set can still reject something before it is trusted to accept
+// anything.
+//
+// The failure mode this exists for is silent: if the rules and the gate's input contract
+// drift apart — a rule referencing a field that no longer exists, an empty policy
+// directory, a package renamed — every rule matches nothing, no error is raised, and the
+// gate returns a clean pass for every pull request. A gate that approves everything is
+// indistinguishable from a working gate right up to the moment it matters. Evaluating a
+// manifest that must be rejected turns that silent failure into a loud one.
+func (e *Engine) selfTest(ctx context.Context) error {
+	result := e.Evaluate(ctx, []cost.Object{canary})
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("policy self-test failed to evaluate: %v", result.Errors)
+	}
+	if len(result.Violations) == 0 {
+		return fmt.Errorf("policy self-test produced no violations against a manifest that declares " +
+			"no resources, no probes and no security context. The rules are not matching anything — " +
+			"most likely the rule set and the gate's input contract have drifted apart, or the " +
+			"policy directory is not the one you think it is. Refusing to run, because in this " +
+			"state the gate would pass every pull request")
+	}
+	return nil
 }
 
 func regoFiles(dir string) ([]string, error) {
@@ -112,8 +164,22 @@ func regoFiles(dir string) ([]string, error) {
 func (e *Engine) Evaluate(ctx context.Context, objects []cost.Object) Result {
 	var result Result
 
+	// Rules see the whole rendered set alongside the object under evaluation. Some
+	// properties are only decidable across objects — whether a Service routes to a
+	// Deployment, whether a workload is covered by a NetworkPolicy — and a rule that
+	// can only see one manifest has to guess at them. Guessing produces false
+	// positives on correct manifests, which is the fastest way to get a gate disabled.
+	peers := make([]map[string]any, 0, len(objects))
+	for _, o := range objects {
+		peers = append(peers, map[string]any(o))
+	}
+
 	for _, obj := range objects {
-		rs, err := e.prepared.Eval(ctx, rego.EvalInput(map[string]any(obj)))
+		input := map[string]any{
+			"manifest": map[string]any(obj),
+			"peers":    peers,
+		}
+		rs, err := e.prepared.Eval(ctx, rego.EvalInput(input))
 		if err != nil {
 			// Recorded, not returned: one object failing to evaluate must not hide the
 			// violations found in every other object. The caller decides what an error

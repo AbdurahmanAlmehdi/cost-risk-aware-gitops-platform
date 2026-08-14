@@ -7,7 +7,7 @@
 package gate
 
 is_network_policy if {
-	input.kind == "NetworkPolicy"
+	manifest.kind == "NetworkPolicy"
 }
 
 # An ingress rule with an empty `from` admits every pod in the cluster. It looks
@@ -15,7 +15,7 @@ is_network_policy if {
 # default-deny baseline was put in place to prevent.
 violation contains v if {
 	is_network_policy
-	some rule in input.spec.ingress
+	some rule in manifest.spec.ingress
 	not rule.from
 	v := {
 		"rule": "GATE-016",
@@ -28,7 +28,7 @@ violation contains v if {
 # 0.0.0.0/0 in an ipBlock reaches past the cluster to the entire internet.
 violation contains v if {
 	is_network_policy
-	some rule in input.spec.ingress
+	some rule in manifest.spec.ingress
 	some from in rule.from
 	from.ipBlock.cidr == "0.0.0.0/0"
 	v := {
@@ -43,8 +43,8 @@ violation contains v if {
 # intended for a default-deny policy, and dangerous for a policy that allows something.
 violation contains v if {
 	is_network_policy
-	count(object.get(input.spec, "podSelector", {})) == 0
-	count(object.get(input.spec, "ingress", [])) > 0
+	count(object.get(manifest.spec, "podSelector", {})) == 0
+	count(object.get(manifest.spec, "ingress", [])) > 0
 	v := {
 		"rule": "GATE-018",
 		"severity": "warn",

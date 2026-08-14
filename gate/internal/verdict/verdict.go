@@ -90,13 +90,18 @@ func Aggregate(cfg *config.Config, delta cost.Delta, costErrors []string, pol po
 		v.Decision = Pass
 	}
 
-	for _, e := range v.Cost.Errors {
-		v.Reasons = append(v.Reasons, "cost sub-gate could not be evaluated: "+e)
+	// Errors are summarised here and printed in full in their own section. A compile
+	// failure can run to dozens of lines, and repeating it verbatim in the summary
+	// pushes the cost and policy findings off the top of the comment.
+	if len(v.Cost.Errors) > 0 {
+		v.Reasons = append(v.Reasons, fmt.Sprintf(
+			"the cost sub-gate could not be evaluated (%d error(s)); see the Cost section below",
+			len(v.Cost.Errors)))
 	}
-	if cfg.Spec.Policy.TreatErrorAsBlocking {
-		for _, e := range v.Policy.Errors {
-			v.Reasons = append(v.Reasons, "policy sub-gate could not be evaluated: "+e)
-		}
+	if cfg.Spec.Policy.TreatErrorAsBlocking && len(v.Policy.Errors) > 0 {
+		v.Reasons = append(v.Reasons, fmt.Sprintf(
+			"the policy sub-gate could not be evaluated (%d error(s)); see the Policy section below",
+			len(v.Policy.Errors)))
 	}
 	v.Reasons = append(v.Reasons, v.Cost.Fired...)
 	for _, viol := range v.Policy.Blocking {
