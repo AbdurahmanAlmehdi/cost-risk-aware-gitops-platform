@@ -1,97 +1,151 @@
 # Cost- and Risk-Aware GitOps Platform
 
-Policy-gated continuous delivery with real-time FinOps and elastic workloads on Kubernetes.
+**Policy-gated continuous delivery with real-time FinOps and elastic workloads on Kubernetes.**
 
-The platform's claim is narrow and testable: **govern a change before it runs, and measure
-it while it runs.** A pull request that would raise infrastructure cost beyond a budget, or
-that violates a codified safety rule, is blocked at merge time. Everything that survives the
-gate is delivered by pull-based GitOps, priced continuously against the same rate table the
-gate used, scaled on real demand, and isolated by a default-deny network baseline.
+A change to this repository is priced and checked *before* it can merge, deployed only
+after it has passed, then measured against that prediction while it runs.
 
-## Why one platform instead of three projects
+---
 
-This design merges three earlier proposals — a FinOps CI/CD pipeline, a self-healing and
-autoscaling environment, and a zero-trust network. They are not merely co-located here; each
-supplies something the others need to be more than a demo:
+## The claim
 
-- Autoscaling without cost attribution shows replicas moving but never what they cost.
-- Cost attribution without autoscaling shows a flat line with nothing to explain it.
-- A pre-merge cost gate without live attribution produces an estimate nobody can check.
+Govern before it runs; measure while it runs.
 
-Joining them closes that last loop: **M2 estimates a change's cost before merge and M4
-measures the same workload after deploy, both from one version-controlled pricing table**, so
-prediction and reality can be placed on a single axis and compared.
+Three things that are normally separate concerns are treated here as one system:
+
+- **Cost** is usually discovered on next month's invoice. Here it is estimated at review
+  time, from the manifest, and reconciled against live consumption after deploy.
+- **Policy** is usually enforced at admission, after a change has already been merged and
+  deployed. Here it blocks the merge.
+- **Elasticity** is usually justified by "it scales". Here scaling events and spend are
+  plotted on one axis, so the demand → replicas → cost relationship is visible rather
+  than asserted.
+
+The reason these belong together is the pricing table. `platform/pricing/pricing.yaml` is
+read by both the pre-merge estimate (M2) and the live cost exporter (M4). One table means
+prediction and measurement are expressed in the same units at the same rates, so they can
+be compared. Two tables would produce two numbers that look comparable and are not.
 
 ## Architecture
 
-Modules are grouped into planes by how they are allowed to fail:
+Eight modules across four planes. What each one is *allowed* to do is deliberately narrow —
+the sum of those boundaries is what makes the central claim defensible.
 
-| Plane | Modules | Failure behaviour |
+| Module | Plane | Authority |
 |---|---|---|
-| Control | M1 Source & CI, M2 Pre-Merge Gate, M3 GitOps Delivery | **Fails safe** — never merges or deploys on uncertainty |
-| Runtime | M5 Elasticity, M6 Security Baseline | M6 fails **closed**; M5 falls back to metric-based scaling |
-| Data | M4 Cost Attribution, M7 Observability | **Fails soft** — gaps, never outages |
-| Intelligence | M8a Anomaly Detection, M8b PR Explanation | **Advisory only** — removable without affecting correctness |
+| M1 Source & CI | Control | Builds and publishes; never deploys |
+| **M2 Pre-Merge Gate** | Control | Blocks at merge; no runtime authority |
+| M3 GitOps Delivery | Control | Deploys gated state only |
+| M4 Cost Attribution | Data | Read-only |
+| M5 Elasticity | Runtime | Owns scale, not existence |
+| M6 Security Baseline | Runtime | L3/L4 default-deny; fails closed |
+| M7 Observability | Data | Observation only |
+| M8 Cost Intelligence | Intelligence | Advisory only; removable |
 
-That split is the design's load-bearing idea. Anything that decides *what runs* must be
-strict; anything that *observes or advises* must never become a single point of failure. M8
-can be deleted entirely and every other module still behaves correctly.
+The failure philosophy splits along the same line:
 
-Full specification: [`docs/LLD.md`](docs/LLD.md). Decisions and their rationale:
-[`docs/adr/`](docs/adr/).
+- **The control plane fails safe.** M2 never merges on uncertainty — a sub-gate that
+  errors is `inconclusive`, which blocks exactly like a failure. M6 fails closed.
+- **The data and intelligence planes fail soft.** M4, M7 and M8 degrade to gaps and
+  fallbacks rather than breaking delivery. M8 can be deleted entirely without affecting
+  any other module's correctness.
 
-## Repository layout
-
-```
-app/          M1 — demo workload: API producer + worker consumer over a shared queue
-gate/         M2 — the pre-merge gate (cost sub-gate + policy sub-gate + verdict)
-policies/     M2 — codified rules the policy sub-gate evaluates
-manifests/    M3 — desired state; the only authority on what runs
-platform/     cluster substrate: kind, Calico, pricing table, observability, KEDA
-exporter/     M4 — live cost attribution
-tools/        verification scripts (CNI enforcement, connectivity matrix, load)
-docs/         LLD, ADRs, demo script
-```
-
-## Getting started
-
-Requires Docker, `kind`, `kubectl`, `helm`, and Go 1.24+.
-
-```bash
-make bootstrap
-```
-
-This creates a 3-node kind cluster, installs Calico, and then **verifies that the CNI
-actually enforces NetworkPolicy** rather than merely accepting it — the API server will
-happily store a policy that an inert CNI ignores, so enforcement is tested, not assumed.
-
-Deploy the demo workload:
-
-```bash
-kubectl apply -f manifests/platform/namespaces.yaml
-kubectl apply -k manifests/apps/redis
-kubectl apply -k manifests/apps/demo-api
-kubectl apply -k manifests/apps/demo-worker
-```
-
-Drive load and watch the queue drain:
-
-```bash
-curl -X POST "http://localhost:8081/api/jobs?count=50&duration_ms=500"
-curl "http://localhost:8081/api/queue"
-```
-
-`make help` lists every target.
+Full design: [`docs/LLD.md`](docs/LLD.md).
 
 ## Status
 
 | Phase | Module | State |
 |---|---|---|
-| 0 | Cluster substrate | **Done** — 3 nodes, Calico, enforcement verified |
-| 1 | M1 workload + CI | Workload done; CI pipeline pending |
-| 2 | M2 pre-merge gate | Configuration defined; implementation pending |
-| 3 | M3 GitOps delivery | Pending |
-| 4 | M4 / M7 cost + observability | Pending |
-| 5 | M5 elasticity | Pending |
-| 6 | M6 network baseline | Foundation verified; policies pending |
-| 7 | M8 cost intelligence | Pending |
+| 0 | Cluster substrate | ✅ 3-node kind cluster, Calico, enforcement verified |
+| 1 | M1 Source & CI | ✅ Go workload, multi-arch build, GHCR digest-pinned publish |
+| 2 | **M2 Pre-Merge Gate** | ✅ Cost + policy sub-gates, 18 rules, 20 tests, live on PRs |
+| 3 | M3 GitOps Delivery | ⬜ ArgoCD, app-of-apps, drift detection |
+| 4 | M4 / M7 | ⬜ Cost exporter, Prometheus, Grafana correlation view |
+| 5 | M5 Elasticity | ⬜ KEDA on queue depth, HPA fallback |
+| 6 | M6 Security Baseline | ⬜ Default-deny, allow-lists, connectivity matrix |
+| 7 | M8 Cost Intelligence | ⬜ Anomaly baseline, PR explainer |
+
+[PR #1](https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform/pull/1) is a
+deliberately non-compliant change kept open as a live demonstration of the gate.
+
+## Quick start
+
+Requires Docker, `kind`, `kubectl`, `helm` and Go 1.24.
+
+```bash
+make bootstrap
+```
+
+That creates the cluster, installs Calico, and **verifies that NetworkPolicy is actually
+enforced** — not merely accepted. The distinction matters: the API server stores a
+NetworkPolicy happily under a CNI that ignores it, so `kubectl get networkpolicy` proves
+nothing. kind's default CNI does not enforce policy at all, which is why Calico is
+installed at cluster-creation time rather than added later.
+
+Run the gate against your working branch:
+
+```bash
+make gate BASE=main
+```
+
+## How the gate works
+
+```
+PR opened
+   │
+   ├─ tests ──────────── fail fast, before anything expensive
+   │
+   ├─ build + publish ── digest-pinned image
+   │
+   └─ gate
+        ├─ diff ────── which kustomize roots does this PR touch?
+        ├─ render ──── kustomize build at base and at head
+        ├─ cost ─────┐
+        ├─ policy ───┴─ evaluated independently
+        └─ verdict ──── pass ⟺ both sub-gates pass
+```
+
+Some specifics that are load-bearing:
+
+**Manifests are rendered through kustomize, not parsed.** ArgoCD renders through kustomize
+too. Reading `deployment.yaml` directly would let the gate evaluate something different
+from what M3 deploys the moment an overlay is involved — breaking the guarantee that what
+was approved is what ships.
+
+**The gate never calls the GitHub API.** It reads Git, decides, and prints. The workflow
+delivers the verdict. So a GitHub outage can delay a report but can never turn a blocking
+verdict into a passing one.
+
+**Cost prices requests, not usage.** Requests are what the scheduler reserves and what
+capacity must be planned for. Usage is unknowable before the workload has run — M4 makes
+that gap visible after deploy rather than the gate pretending to predict it.
+
+**A container with no requests is not free.** It is priced from a declared default and
+flagged. Pricing it at zero would make declaring nothing the cheapest way past the cost
+gate, which is exactly what the policy gate forbids.
+
+**The rule set self-tests on startup.** The worst failure mode for a policy engine is
+silence: a renamed input path or an empty policy directory makes every rule match nothing,
+raise no error, and approve every pull request. Before the gate trusts the rules to accept
+anything, it checks they can still reject a manifest that declares no resources, no probes
+and no security context. If they cannot, it refuses to run.
+
+## Layout
+
+```
+app/          M1 — the demo workload (API producer + queue worker)
+gate/         M2 — the gate binary: diff, cost, policy, verdict, report
+policies/     M2 — Rego rules (18, across resources/probes/privilege/images/network)
+manifests/    M3 — desired state; the only authority on what runs
+platform/     cluster substrate: kind config, Calico, pricing table
+gate.yaml     every value that can change a verdict, in version control
+docs/         LLD and architecture decisions
+```
+
+## Honesty about the cost figures
+
+The cluster is local. No money is spent. Every figure the platform reports is a *model* of
+what the same workload would cost on a cloud provider, computed from published on-demand
+rates decomposed per resource. The modelling is deterministic and auditable, and the same
+rates are applied to both the prediction and the measurement — which is what makes the
+comparison between them meaningful, and what the project actually claims.
