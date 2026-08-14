@@ -30,7 +30,6 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/app
 
 jobs:
   test:
@@ -70,6 +69,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Resolve the image name
+        id: image
+        # Container registries require lowercase repository names, and this account has
+        # capitals in it. Deriving the name from ${{ github.repository }} verbatim fails
+        # the push with "repository name must be lowercase".
+        run: |
+          echo "name=${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/app" \
+            >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
@@ -87,7 +95,7 @@ jobs:
           # arm64 Mac. A single-arch image would work in CI and fail to start locally.
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -97,7 +105,7 @@ jobs:
             echo "### Published image"
             echo
             echo '```'
-            echo "${REGISTRY}/${IMAGE_NAME}@${{ steps.push.outputs.digest }}"
+            echo "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}"
             echo '```'
             echo
             echo "Pin manifests to this digest, never to the tag — a tag can be repointed"
