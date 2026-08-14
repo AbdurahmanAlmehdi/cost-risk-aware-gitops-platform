@@ -21,10 +21,21 @@ Three things that are normally separate concerns are treated here as one system:
   plotted on one axis, so the demand → replicas → cost relationship is visible rather
   than asserted.
 
-The reason these belong together is the pricing table. `platform/pricing/pricing.yaml` is
-read by both the pre-merge estimate (M2) and the live cost exporter (M4). One table means
-prediction and measurement are expressed in the same units at the same rates, so they can
-be compared. Two tables would produce two numbers that look comparable and are not.
+## Why one platform instead of three projects
+
+This design merges three earlier proposals — a FinOps CI/CD pipeline, a self-healing and
+autoscaling environment, and a zero-trust network. They are not merely co-located here.
+Each supplies something the others need in order to be more than a demo:
+
+- Autoscaling without cost attribution shows replicas moving but never what they cost.
+- Cost attribution without autoscaling shows a flat line with nothing to explain it.
+- A pre-merge cost gate without live attribution produces an estimate nobody can check.
+
+The join is the pricing table. `platform/pricing/pricing.yaml` is read by both the
+pre-merge estimate (M2) and the live cost exporter (M4), so prediction and measurement are
+expressed in the same units at the same rates and can be placed on one axis and compared.
+Two tables would produce two numbers that look comparable and are not — and that
+comparison is the thing none of the three original proposals could make on its own.
 
 ## Architecture
 
