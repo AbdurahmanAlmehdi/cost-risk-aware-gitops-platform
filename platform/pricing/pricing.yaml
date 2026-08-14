@@ -1,0 +1,63 @@
+# The single pricing authority for the whole platform.
+#
+# This file is read by BOTH:
+#   * M2's cost sub-gate  — to estimate the cost delta of a pull request (predicted)
+#   * M4's cost exporter  — to price live resource consumption      (actual)
+#
+# Using one table for both is the point: a pre-merge estimate and a post-deploy
+# measurement are expressed in the same units against the same rates, so they can be
+# placed on one axis in M7 and compared. Two separate pricing sources would make that
+# comparison meaningless.
+#
+# HONESTY NOTE (state this in the report and the defense): the cluster is local, so no
+# money is actually spent. These are published on-demand rates for a general-purpose
+# Linux instance family, decomposed into per-resource rates. Every figure the platform
+# reports is therefore a *model* of what the same workload would cost on a cloud
+# provider, not a bill. The modelling is deterministic and auditable, which is what
+# makes the pre-merge/live comparison valid.
+
+apiVersion: finops.gitops-platform.io/v1
+kind: PricingTable
+metadata:
+  name: default
+  # Bump on any rate change. The gate records this in its verdict so an old PR comment
+  # can always be traced back to the rates it was computed against.
+  version: 1
+  source: "AWS EC2 on-demand, m5 family, us-east-1, decomposed per-resource"
+  retrievedAt: "2026-08-14"
+
+spec:
+  currency: USD
+
+  # Cost is normalised to resource-hours. hoursPerMonth is used only for presentation
+  # (dashboards and PR comments quote monthly figures because that is how budgets are set).
+  hoursPerMonth: 730
+
+  rates:
+    cpu:
+      unit: core-hour
+      price: 0.0316
+    memory:
+      unit: gib-hour
+      price: 0.00421
+    storage:
+      unit: gib-hour
+      # ~ $0.10 per GiB-month for general-purpose block storage.
+      price: 0.000137
+
+  # M4 §4.5: an unknown resource dimension is priced at this rate and flagged, rather
+  # than silently dropped. A silent drop would understate cost and hide the gap.
+  defaults:
+    unknownResource:
+      unit: unit-hour
+      price: 0.0
+      flag: true
+
+  # M2 prices what a manifest *requests*, because requests are what the scheduler
+  # reserves and therefore what a cloud provider bills for capacity planning.
+  # A container with no requests is not free — it is unbounded. These fallbacks make
+  # that visible, and the policy sub-gate blocks the manifest separately.
+  missingRequests:
+    cpu: "500m"
+    memory: "512Mi"
+    flag: true

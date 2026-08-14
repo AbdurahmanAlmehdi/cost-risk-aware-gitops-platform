@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-api
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/part-of: demo
+spec:
+  # NodePort so the load generator can drive the API from the host through the port
+  # mapping declared in platform/kind/cluster.yaml, without an ingress controller that
+  # would add a component the project does not otherwise need.
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: demo-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: 30082

@@ -1,0 +1,21 @@
+# Build output
+bin/
+dist/
+*.test
+*.out
+
+# Local cluster / tooling state
+kubeconfig
+*.kubeconfig
+.tmp/
+.cache/
+
+# Secrets — never committed. See docs/adr/0004-secret-handling.md
+.env
+*.local.yaml
+!*.example.yaml
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

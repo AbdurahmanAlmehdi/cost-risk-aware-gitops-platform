@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: demo
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+# The single line CI rewrites on every merge, and the single line M2 reads to know
+# exactly which image a pull request intends to deploy. Keeping the image reference in
+# one declarative field — rather than inline in the Deployment — is what lets an
+# automated image update be a one-line, reviewable diff.
+images:
+  - name: demo-app
+    newName: gitops-platform/app
+    newTag: dev

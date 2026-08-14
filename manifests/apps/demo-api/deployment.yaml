@@ -1,0 +1,79 @@
+# M1 workload — the producer tier.
+#
+# Fixed replica count on purpose: this is the front door, and holding it constant is
+# what makes M5's effect on the worker tier attributable. If both tiers scaled, a
+# change in throughput could not be traced to either one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-api
+        app.kubernetes.io/component: api
+        app.kubernetes.io/part-of: demo
+    spec:
+      nodeSelector:
+        workload: apps
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          # Rewritten by kustomize (see kustomization.yaml) to a digest-pinned
+          # reference. Never a floating tag: M2 evaluates a specific image and M3 must
+          # deploy that exact image, which only a digest guarantees.
+          image: demo-app
+          command: ["/api"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: REDIS_ADDR
+              value: redis.demo.svc.cluster.local:6379
+            - name: LISTEN_ADDR
+              value: ":8080"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              # No CPU limit is set deliberately: a limit throttles rather than evicts,
+              # which would distort the latency M7 charts. Memory IS limited because
+              # memory pressure is not gracefully degradable.
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            # Backed by queue reachability: an API that cannot reach Redis has nowhere
+            # to put work and must leave the Service rather than accept and drop it.
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            failureThreshold: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

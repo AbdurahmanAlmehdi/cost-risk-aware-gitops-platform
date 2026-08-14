@@ -1,0 +1,77 @@
+# M1 workload — the consumer tier, and the target of M5's autoscaling.
+#
+# This is the expensive workload: its replica count is what KEDA changes, its CPU is
+# what M4 prices, and the correlation between the two is what M7 plots. Everything
+# about it is sized so that a scale event produces a visible, explainable cost movement.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-worker
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: demo
+spec:
+  # Baseline only. Once M5 is installed its ScaledObject owns this field, and the value
+  # here becomes the count the cluster returns to when demand disappears.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: demo
+    spec:
+      nodeSelector:
+        workload: apps
+      # A worker finishes its current job before exiting, so termination must be given
+      # room. This exceeds the queue's 5s blocking-pop timeout plus the longest
+      # reasonable job, which is what makes a scale-down lossless rather than lossy.
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: demo-app
+          command: ["/worker"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: REDIS_ADDR
+              value: redis.demo.svc.cluster.local:6379
+            - name: CONCURRENCY
+              # One job at a time per pod, so throughput is a straight multiple of
+              # replica count and a scale event has an unambiguous reading.
+              value: "1"
+          resources:
+            requests:
+              # The dominant cost driver in the whole platform. At the pricing table's
+              # rate this is roughly $11.50/month per replica, which is large enough
+              # that a scale-up is clearly visible on the cost dashboard and in a
+              # pull-request cost delta.
+              cpu: 500m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          # No readiness probe: the worker pulls work rather than receiving it, so it
+          # is never in a Service's endpoints and readiness would have no consumer.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

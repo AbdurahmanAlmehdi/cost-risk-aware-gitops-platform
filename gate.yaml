@@ -1,0 +1,78 @@
+# M2 — Pre-Merge Gate configuration.
+#
+# Every value that changes the gate's verdict lives here, in version control, and is
+# itself subject to the gate (LLD §9.1, §9.4 — the platform governs changes to itself
+# the same way it governs application changes). Nothing that alters a verdict is
+# hard-coded in the gate binary.
+
+apiVersion: gate.gitops-platform.io/v1
+kind: GateConfig
+metadata:
+  name: default
+
+spec:
+  # Where the gate looks. Paths are relative to the repository root.
+  paths:
+    manifests: manifests/
+    policies: policies/
+    pricing: platform/pricing/pricing.yaml
+
+  # ---------------------------------------------------------------------------
+  # Cost sub-gate
+  # ---------------------------------------------------------------------------
+  # Resolves the LLD §2.3 open question ("fixed per-PR ceiling OR percentage delta")
+  # as BOTH, because each alone has a failure mode:
+  #   * a fixed ceiling alone lets a large deployment grow by a large absolute amount
+  #     as long as each PR stays under the ceiling;
+  #   * a percentage alone lets a tiny workload triple for pennies while blocking a
+  #     rounding error on a large one.
+  # Either threshold can block; the verdict names which one fired.
+  cost:
+    mode: both            # absolute | percent | both
+
+    # Absolute monthly increase this PR may add, across all changed manifests.
+    block:
+      maxMonthlyDeltaUSD: 25.00
+      maxPercentIncrease: 20.0
+    # Reported on the PR but does not block.
+    warn:
+      maxMonthlyDeltaUSD: 10.00
+      maxPercentIncrease: 10.0
+
+    # A PR that only ever reduces cost is never blocked by the cost sub-gate.
+    allowUnboundedDecrease: true
+
+    # Baseline = the cost of the same manifest set at the PR's base commit. If a
+    # manifest is newly added there is no baseline, so percentage is undefined and
+    # only the absolute threshold applies.
+    baseline: base-commit
+
+  # ---------------------------------------------------------------------------
+  # Policy sub-gate
+  # ---------------------------------------------------------------------------
+  policy:
+    engine: rego
+    # Severities that cause a failing verdict. Anything else is reported as a warning.
+    failOnSeverity: ["block"]
+    # An erroring rule is NOT a passing rule (LLD §2.5 — fail safe on uncertainty).
+    treatErrorAsBlocking: true
+
+  # ---------------------------------------------------------------------------
+  # Reporting
+  # ---------------------------------------------------------------------------
+  report:
+    statusCheckName: "gate/cost-and-policy"
+    # Replace the gate's previous comment instead of appending a new one on each push,
+    # so a long-running PR does not accumulate a wall of stale verdicts.
+    commentStrategy: update-in-place
+
+  # ---------------------------------------------------------------------------
+  # M8b — advisory PR explanation. Off by default and never affects the verdict.
+  # ---------------------------------------------------------------------------
+  explain:
+    enabled: false
+    # Failure to explain is not a failure to gate: if this errors or times out, the
+    # structured report stands alone and the verdict is unchanged (LLD §8.2).
+    timeoutSeconds: 20
+    model: ""
+    endpoint: ""

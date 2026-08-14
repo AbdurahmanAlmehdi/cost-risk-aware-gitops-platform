@@ -1,0 +1,65 @@
+# M0 — cluster substrate for the Cost- and Risk-Aware GitOps Platform.
+#
+# Two deliberate choices are baked in here because they are expensive to change later:
+#
+#  1. disableDefaultCNI: kind's built-in CNI (kindnet) does not enforce NetworkPolicy.
+#     M6's default-deny baseline would appear to apply while enforcing nothing, which is
+#     worse than no policy at all. Calico is installed immediately after cluster creation.
+#  2. Separate platform/apps worker nodes: M5 must be able to scale application workloads
+#     without evicting the stateful platform components it is being measured by, and M6's
+#     namespace isolation is more meaningful across nodes than within one.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: gitops-platform
+
+networking:
+  disableDefaultCNI: true
+  # Calico's default IPv4 pool. Keep in sync with platform/network/calico-installation.yaml.
+  podSubnet: "192.168.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # ArgoCD UI  -> http://localhost:8080   (M3 delivery surface)
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      # Grafana    -> http://localhost:3000   (M7 demonstration surface)
+      - containerPort: 30081
+        hostPort: 3000
+        protocol: TCP
+      # Demo API   -> http://localhost:8081   (M1 workload, load-generator target)
+      - containerPort: 30082
+        hostPort: 8081
+        protocol: TCP
+
+  # Platform node: ArgoCD, Prometheus, Grafana, the cost exporter. Tainted so that
+  # application replicas created by M5 never land here and skew platform measurements.
+  - role: worker
+    labels:
+      workload: platform
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "workload=platform"
+            register-with-taints: "workload=platform:NoSchedule"
+
+  # Application node: the demo API and anything else M3 deploys.
+  - role: worker
+    labels:
+      workload: apps
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "workload=apps"

@@ -1,0 +1,100 @@
+# The shared work queue — the stateful component the platform is built to protect.
+#
+# Placement is deliberate: Redis is pinned to the platform node, which carries a
+# NoSchedule taint that application workloads do not tolerate. M5 can therefore scale
+# workers from 1 to 20 without ever contending with, evicting, or rescheduling the queue
+# they all depend on. This is the "isolate stateful workloads from volatile ones"
+# requirement, expressed as scheduling constraints rather than as hope.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: queue
+    app.kubernetes.io/part-of: demo
+spec:
+  # Single replica by design. Redis here is a queue, not a cache: a second replica
+  # would be a second independent queue, and the depth M5 scales on would become
+  # ambiguous. Replication would require Sentinel or Cluster, which is out of scope.
+  replicas: 1
+  strategy:
+    # Recreate, not RollingUpdate: two Redis pods briefly sharing the name would split
+    # the queue and silently strand jobs in the one being torn down.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: queue
+        app.kubernetes.io/part-of: demo
+    spec:
+      nodeSelector:
+        workload: platform
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: platform
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7.4.2-alpine
+          args:
+            # Persistence is off: the queue is working state, and a demo that restores
+            # a stale backlog on restart would misreport demand to M5.
+            - "--save"
+            - ""
+            - "--appendonly"
+            - "no"
+            # Bounded memory so a runaway producer cannot consume the node. Rejecting
+            # writes at the limit surfaces backpressure to the API as a visible error
+            # instead of an OOMKill that looks like an unrelated crash.
+            - "--maxmemory"
+            - "200mb"
+            - "--maxmemory-policy"
+            - "noeviction"
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            tcpSocket:
+              port: redis
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        # emptyDir, not a PVC: with persistence disabled there is nothing durable to
+        # keep, and a PVC would add a storage dependency that contributes nothing to
+        # what this platform demonstrates.
+        - name: data
+          emptyDir: {}

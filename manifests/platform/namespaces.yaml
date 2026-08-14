@@ -1,0 +1,17 @@
+# Namespaces are platform state, not application state, so they live outside the app
+# directories. An application must never be able to create the namespace that is meant
+# to contain it — that is the boundary M6 isolates on and M4 attributes cost to.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    # Consumed by M6 network policies to express "same-application traffic" without
+    # naming individual pods, and by M4 to roll cost up to an owner.
+    app.kubernetes.io/part-of: demo
+    gitops-platform.io/cost-center: demo
+    # Enforce the restricted Pod Security Standard at admission. This is a second,
+    # independent line of defence behind M2: M2 blocks a non-compliant manifest at
+    # merge time, and this rejects it at apply time if it ever arrives another way.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
