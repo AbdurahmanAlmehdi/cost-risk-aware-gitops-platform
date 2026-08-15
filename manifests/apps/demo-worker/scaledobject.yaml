@@ -1,0 +1,74 @@
+# M5 — the scaling rule for the consumer tier.
+#
+# The demand signal is the shared queue itself, not a proxy for it. CPU utilisation only
+# rises *after* the work has arrived and the existing pods are already saturated, so
+# scaling on CPU always reacts late — by the time it fires, the backlog is built and the
+# queueing delay has already been paid. Queue depth is the demand, observable the moment
+# it appears.
+#
+# This object is also the largest cost decision in the repository: maxReplicaCount
+# authorises the ceiling. M2 prices this workload at that ceiling for exactly that reason.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: demo-worker
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-worker
+    app.kubernetes.io/part-of: demo
+spec:
+  scaleTargetRef:
+    name: demo-worker
+
+  # Never scales to zero. A cold start would have to pull the image and connect to Redis
+  # before the first job could be picked up, so the queue would drain more slowly after a
+  # quiet period than during one — and the platform's own idle cost would be hidden rather
+  # than measured, which is precisely what M4 exists to show.
+  minReplicaCount: 1
+  # Deliberately explicit. Omitting this hands the decision to KEDA's default of 100
+  # replicas, which on this workload authorises roughly $1,170/month.
+  maxReplicaCount: 6
+
+  pollingInterval: 15
+  # How long demand must stay low before scaling down. Longer than the polling interval so
+  # a brief lull between bursts does not tear down workers that are about to be needed.
+  cooldownPeriod: 60
+
+  # If the trigger itself fails — Redis unreachable, scaler erroring — hold at a sane
+  # replica count rather than collapsing to the minimum. Scaling down because the signal
+  # disappeared is the worst possible reading of "no demand": the queue may be full and
+  # simply unobservable (LLD §5.5).
+  fallback:
+    failureThreshold: 3
+    replicas: 2
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          # React quickly: the backlog is already growing by the time this fires.
+          stabilizationWindowSeconds: 15
+        scaleDown:
+          # Retreat slowly. Scaling down aggressively under a bursty workload causes
+          # flapping, and every flap pays a cold start it did not need to.
+          stabilizationWindowSeconds: 120
+
+  triggers:
+    # Primary: the shared backlog. listLength is the average queue depth each replica
+    # should be responsible for, so KEDA targets ceil(depth / 5) replicas.
+    - type: redis
+      metadata:
+        address: redis.demo.svc.cluster.local:6379
+        # Must match queue.Key in the application. The autoscaler and the application
+        # agree on what "demand" means by construction rather than by convention.
+        listName: "jobs:pending"
+        listLength: "5"
+        enableTLS: "false"
+
+    # Secondary, and the LLD's required fallback path (§5.5): if the event-driven signal
+    # is unavailable, scaling still happens on a resource metric. KEDA takes the highest
+    # replica count any trigger asks for, so this can only ever add safety.
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"

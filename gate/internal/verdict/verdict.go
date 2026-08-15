@@ -44,11 +44,11 @@ type Verdict struct {
 
 	// Provenance: which config and rate table produced this verdict. A blocked pull
 	// request must be explainable months later, when both may have changed.
-	PricingVersion int    `json:"pricing_version"`
-	PricingSource  string `json:"pricing_source"`
-	Currency       string `json:"currency"`
-	BaseRef        string `json:"base_ref"`
-	HeadRef        string `json:"head_ref"`
+	PricingVersion int      `json:"pricing_version"`
+	PricingSource  string   `json:"pricing_source"`
+	Currency       string   `json:"currency"`
+	BaseRef        string   `json:"base_ref"`
+	HeadRef        string   `json:"head_ref"`
 	EvaluatedRoots []string `json:"evaluated_roots"`
 }
 
@@ -121,8 +121,13 @@ func evaluateCost(cfg config.CostConfig, delta cost.Delta, errors []string) Cost
 		return cv
 	}
 
+	// Elastic headroom is judged first and separately. It is spend the change
+	// *authorises* rather than commits to, so it gets its own budget — see
+	// config.AutoscalingBudget for why one budget cannot serve both.
+	evaluateAutoscaling(cfg.Autoscaling, delta, &cv)
+
 	// A change that reduces spend is never blocked for being too large a reduction.
-	if delta.DeltaMonthlyUSD <= 0 && cfg.AllowUnboundedDecrease {
+	if delta.CommittedDeltaUSD <= 0 && cfg.AllowUnboundedDecrease {
 		return cv
 	}
 
@@ -132,7 +137,7 @@ func evaluateCost(cfg config.CostConfig, delta cost.Delta, errors []string) Cost
 	// Percentage is undefined against a zero baseline. Rather than skip the check —
 	// which would let an unlimited new workload through in percent mode — the absolute
 	// threshold stands in, and the report says that is what happened.
-	if checkPercent && !delta.HasPercentBasis {
+	if checkPercent && !delta.HasCommittedBasis {
 		checkPercent = false
 		if !checkAbsolute {
 			checkAbsolute = true
@@ -142,33 +147,73 @@ func evaluateCost(cfg config.CostConfig, delta cost.Delta, errors []string) Cost
 		}
 	}
 
-	if checkAbsolute && delta.DeltaMonthlyUSD > cfg.Block.MaxMonthlyDeltaUSD {
+	if checkAbsolute && delta.CommittedDeltaUSD > cfg.Block.MaxMonthlyDeltaUSD {
 		cv.Passed = false
 		cv.Fired = append(cv.Fired, fmt.Sprintf(
-			"projected monthly cost increases by $%.2f, above the $%.2f limit for a single change",
-			delta.DeltaMonthlyUSD, cfg.Block.MaxMonthlyDeltaUSD))
+			"committed monthly cost increases by $%.2f, above the $%.2f limit for a single change",
+			delta.CommittedDeltaUSD, cfg.Block.MaxMonthlyDeltaUSD))
 	} else if checkAbsolute && cfg.Warn.MaxMonthlyDeltaUSD > 0 &&
-		delta.DeltaMonthlyUSD > cfg.Warn.MaxMonthlyDeltaUSD {
+		delta.CommittedDeltaUSD > cfg.Warn.MaxMonthlyDeltaUSD {
 		cv.Warned = true
 		cv.Warnings = append(cv.Warnings, fmt.Sprintf(
-			"projected monthly cost increases by $%.2f, above the $%.2f advisory level",
-			delta.DeltaMonthlyUSD, cfg.Warn.MaxMonthlyDeltaUSD))
+			"committed monthly cost increases by $%.2f, above the $%.2f advisory level",
+			delta.CommittedDeltaUSD, cfg.Warn.MaxMonthlyDeltaUSD))
 	}
 
-	if checkPercent && delta.PercentIncrease > cfg.Block.MaxPercentIncrease {
+	if checkPercent && delta.CommittedPercent > cfg.Block.MaxPercentIncrease {
 		cv.Passed = false
 		cv.Fired = append(cv.Fired, fmt.Sprintf(
-			"projected monthly cost increases by %.1f%%, above the %.1f%% limit for a single change",
-			delta.PercentIncrease, cfg.Block.MaxPercentIncrease))
+			"committed monthly cost increases by %.1f%%, above the %.1f%% limit for a single change",
+			delta.CommittedPercent, cfg.Block.MaxPercentIncrease))
 	} else if checkPercent && cfg.Warn.MaxPercentIncrease > 0 &&
-		delta.PercentIncrease > cfg.Warn.MaxPercentIncrease {
+		delta.CommittedPercent > cfg.Warn.MaxPercentIncrease {
 		cv.Warned = true
 		cv.Warnings = append(cv.Warnings, fmt.Sprintf(
-			"projected monthly cost increases by %.1f%%, above the %.1f%% advisory level",
-			delta.PercentIncrease, cfg.Warn.MaxPercentIncrease))
+			"committed monthly cost increases by %.1f%%, above the %.1f%% advisory level",
+			delta.CommittedPercent, cfg.Warn.MaxPercentIncrease))
 	}
 
 	return cv
+}
+
+// evaluateAutoscaling judges elastic headroom — spend a change authorises but does not
+// commit to.
+func evaluateAutoscaling(cfg config.AutoscalingBudget, delta cost.Delta, cv *CostVerdict) {
+	// Burst headroom is the gap between what the change authorises and what it commits
+	// to. A change that adds no autoscaling has no gap and nothing to judge here.
+	ceilingDelta := delta.DeltaMonthlyUSD - delta.CommittedDeltaUSD
+	if ceilingDelta <= 0 {
+		return
+	}
+
+	if ceilingDelta > cfg.MaxCeilingDeltaUSD {
+		cv.Passed = false
+		cv.Fired = append(cv.Fired, fmt.Sprintf(
+			"this change authorises $%.2f/month of additional burst capacity, above the $%.2f "+
+				"limit — the workload would not normally cost this, but nothing would stop it",
+			ceilingDelta, cfg.MaxCeilingDeltaUSD))
+	} else if cfg.WarnCeilingDeltaUSD > 0 && ceilingDelta > cfg.WarnCeilingDeltaUSD {
+		cv.Warned = true
+		cv.Warnings = append(cv.Warnings, fmt.Sprintf(
+			"this change authorises $%.2f/month of additional burst capacity (advisory level $%.2f)",
+			ceilingDelta, cfg.WarnCeilingDeltaUSD))
+	}
+
+	// The ratio check catches the shape the absolute cap misses: a cheap workload with an
+	// enormous multiplier. Each such change looks small in dollars while quietly making
+	// peak spend a large multiple of steady-state.
+	for _, w := range delta.Workloads {
+		if !w.Autoscaled || w.FloorUSD <= 0 {
+			continue
+		}
+		ratio := w.AfterUSD / w.FloorUSD
+		if ratio > cfg.MaxBurstRatio {
+			cv.Passed = false
+			cv.Fired = append(cv.Fired, fmt.Sprintf(
+				"`%s` can burst to %.1f× its committed cost ($%.2f → $%.2f), above the %.1f× limit",
+				w.Ref, ratio, w.FloorUSD, w.AfterUSD, cfg.MaxBurstRatio))
+		}
+	}
 }
 
 func evaluatePolicy(cfg config.PolicyConfig, result policy.Result) PolicyVerdict {

@@ -36,13 +36,24 @@ func (r Resources) scale(n float64) Resources {
 
 // Workload is one priced object.
 type Workload struct {
-	Kind       string    `json:"kind"`
-	Namespace  string    `json:"namespace"`
-	Name       string    `json:"name"`
+	Kind      string `json:"kind"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	// Replicas is the count the workload is priced at. For an autoscaled workload this
+	// is the ceiling, not the current value — see MaxReplicas.
 	Replicas   int       `json:"replicas"`
 	PerReplica Resources `json:"per_replica"`
 	Total      Resources `json:"total"`
 	MonthlyUSD float64   `json:"monthly_usd"`
+
+	// Autoscaled workloads carry their bounds so the report can show what the change
+	// actually authorises rather than what it happens to be running right now.
+	Autoscaled  bool `json:"autoscaled,omitempty"`
+	MinReplicas int  `json:"min_replicas,omitempty"`
+	MaxReplicas int  `json:"max_replicas,omitempty"`
+	// FloorMonthlyUSD is the cost at the autoscaler's minimum — what this workload
+	// costs when nothing is happening.
+	FloorMonthlyUSD float64 `json:"floor_monthly_usd,omitempty"`
 	// Flags record every assumption made while pricing this workload. They are carried
 	// all the way into the pull-request comment: a number whose assumptions are hidden
 	// is not auditable, and this gate blocks merges.
@@ -57,17 +68,88 @@ func (w Workload) Ref() string {
 }
 
 // Estimate is the priced result for one manifest set.
+//
+// Two totals, because elastic spend and committed spend are different commitments and
+// judging them by one number gets both wrong. A workload that idles at one replica and
+// can burst to six commits you to the first and merely authorises the second — treating
+// that as a sixfold cost increase would make autoscaling impossible to adopt, while
+// treating it as no increase at all would let anyone authorise unbounded spend for free.
 type Estimate struct {
-	Workloads  []Workload `json:"workloads"`
-	MonthlyUSD float64    `json:"monthly_usd"`
-	Total      Resources  `json:"total"`
-	Flags      []string   `json:"flags,omitempty"`
+	Workloads []Workload `json:"workloads"`
+	// MonthlyUSD is the ceiling: what this manifest set authorises at full scale.
+	MonthlyUSD float64 `json:"monthly_usd"`
+	// CommittedMonthlyUSD is the floor: what it costs with nothing happening.
+	CommittedMonthlyUSD float64   `json:"committed_monthly_usd"`
+	Total               Resources `json:"total"`
+	Flags               []string  `json:"flags,omitempty"`
 }
 
 // Calculator prices manifests against a rate table.
 type Calculator struct {
 	table            *pricing.Table
 	assumedNodeCount int
+	// Populated at the start of each Estimate call, from the object set being priced.
+	autoscalers map[scaleTarget]autoscaleBounds
+}
+
+// kedaDefaultMaxReplicas is what KEDA uses when maxReplicaCount is omitted.
+//
+// This default is the reason the gate has to understand autoscalers at all: leaving the
+// field out is a one-line manifest that authorises a hundredfold increase in spend, and
+// nothing in the diff looks like a cost change.
+const kedaDefaultMaxReplicas = 100
+
+// collectAutoscalers indexes every autoscaler in the set by the workload it targets.
+func (c *Calculator) collectAutoscalers(objects []Object) map[scaleTarget]autoscaleBounds {
+	found := make(map[scaleTarget]autoscaleBounds)
+
+	for _, obj := range objects {
+		kind, _ := obj["kind"].(string)
+		meta, _ := obj["metadata"].(map[string]any)
+		namespace, _ := meta["namespace"].(string)
+		spec, _ := obj["spec"].(map[string]any)
+		if spec == nil {
+			continue
+		}
+		ref, _ := spec["scaleTargetRef"].(map[string]any)
+		if ref == nil {
+			continue
+		}
+		targetName, _ := ref["name"].(string)
+		if targetName == "" {
+			continue
+		}
+		// Both KEDA and the HPA default their target kind to Deployment when it is
+		// omitted, which is the overwhelmingly common case.
+		targetKind, _ := ref["kind"].(string)
+		if targetKind == "" {
+			targetKind = "Deployment"
+		}
+		target := scaleTarget{namespace: namespace, kind: targetKind, name: targetName}
+
+		switch kind {
+		case "ScaledObject":
+			bounds := autoscaleBounds{
+				min:    intOrDefault(spec["minReplicaCount"], 0),
+				max:    intOrDefault(spec["maxReplicaCount"], kedaDefaultMaxReplicas),
+				source: "KEDA ScaledObject",
+			}
+			if _, ok := spec["maxReplicaCount"]; !ok {
+				bounds.flags = append(bounds.flags, fmt.Sprintf(
+					"the ScaledObject sets no maxReplicaCount, so KEDA's default of %d applies — "+
+						"this authorises up to %d replicas", kedaDefaultMaxReplicas, kedaDefaultMaxReplicas))
+			}
+			found[target] = bounds
+
+		case "HorizontalPodAutoscaler":
+			found[target] = autoscaleBounds{
+				min:    intOrDefault(spec["minReplicas"], 1),
+				max:    intOrDefault(spec["maxReplicas"], 1),
+				source: "HorizontalPodAutoscaler",
+			}
+		}
+	}
+	return found
 }
 
 func New(table *pricing.Table, assumedNodeCount int) *Calculator {
@@ -79,9 +161,28 @@ func New(table *pricing.Table, assumedNodeCount int) *Calculator {
 // said so" instead of failing to decode.
 type Object map[string]any
 
+// autoscaleBounds is the replica range an autoscaler authorises for a workload.
+type autoscaleBounds struct {
+	min, max int
+	source   string
+	flags    []string
+}
+
+// scaleTarget identifies the workload an autoscaler points at.
+type scaleTarget struct {
+	namespace, kind, name string
+}
+
 // Estimate prices every priceable object in the set.
 func (c *Calculator) Estimate(objects []Object) (Estimate, error) {
 	var est Estimate
+
+	// Autoscalers are collected first because they change how the workloads they target
+	// are priced. A KEDA ScaledObject or an HPA is the single largest cost decision in a
+	// repository — it authorises a ceiling — while touching no `replicas:` field at all.
+	// Pricing the Deployment's literal replica count would report the cost of the
+	// quietest possible moment and call it the cost of the change.
+	c.autoscalers = c.collectAutoscalers(objects)
 
 	for _, obj := range objects {
 		w, priced, err := c.price(obj)
@@ -94,6 +195,7 @@ func (c *Calculator) Estimate(objects []Object) (Estimate, error) {
 		est.Workloads = append(est.Workloads, w)
 		est.Total = est.Total.add(w.Total)
 		est.MonthlyUSD += w.MonthlyUSD
+		est.CommittedMonthlyUSD += w.FloorMonthlyUSD
 	}
 
 	// Stable ordering so that two runs over the same manifests produce byte-identical
@@ -192,8 +294,40 @@ func (c *Calculator) price(obj Object) (Workload, bool, error) {
 		return Workload{}, false, nil
 	}
 
+	// An autoscaler overrides the manifest's replica count, because once one exists the
+	// number in the Deployment is only the starting point — the autoscaler owns the value
+	// from then on, and M3 is configured to stop reverting it.
+	//
+	// The workload is priced at the CEILING. A budget has to cover what a change
+	// authorises, not what it happens to be doing during review; pricing the floor would
+	// let anyone raise the maximum to any number for free.
+	if bounds, ok := c.autoscalers[scaleTarget{namespace: namespace, kind: kind, name: name}]; ok {
+		floor := c.table.MonthlyUSD(
+			w.PerReplica.scale(float64(bounds.min)).CPUCores,
+			w.PerReplica.scale(float64(bounds.min)).MemoryGiB,
+			w.PerReplica.scale(float64(bounds.min)).StorageGiB)
+
+		w.Autoscaled = true
+		w.MinReplicas = bounds.min
+		w.MaxReplicas = bounds.max
+		w.Replicas = bounds.max
+		w.FloorMonthlyUSD = floor
+		w.Flags = append(w.Flags, bounds.flags...)
+		w.Flags = append(w.Flags, fmt.Sprintf(
+			"scaled by a %s between %d and %d replicas; priced at the maximum because that is "+
+				"the spend this change authorises. At the minimum it costs $%.2f/month",
+			bounds.source, bounds.min, bounds.max, floor))
+	}
+
 	w.Total = w.PerReplica.scale(float64(w.Replicas))
 	w.MonthlyUSD = c.table.MonthlyUSD(w.Total.CPUCores, w.Total.MemoryGiB, w.Total.StorageGiB)
+
+	// A workload with no autoscaler is committed to its full cost — the floor and the
+	// ceiling are the same number. Leaving the floor at zero here would make every
+	// static workload look free in the committed total.
+	if !w.Autoscaled {
+		w.FloorMonthlyUSD = w.MonthlyUSD
+	}
 	return w, true, nil
 }
 
