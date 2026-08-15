@@ -31,7 +31,7 @@ Each supplies something the others need in order to be more than a demo:
 - Cost attribution without autoscaling shows a flat line with nothing to explain it.
 - A pre-merge cost gate without live attribution produces an estimate nobody can check.
 
-The join is the pricing table. `platform/pricing/pricing.yaml` is read by both the
+The join is the pricing table. `manifests/apps/cost-exporter/pricing.yaml` is read by both the
 pre-merge estimate (M2) and the live cost exporter (M4), so prediction and measurement are
 expressed in the same units at the same rates and can be placed on one axis and compared.
 Two tables would produce two numbers that look comparable and are not — and that
@@ -192,7 +192,7 @@ app/          M1 — the demo workload (API producer + queue worker)
 gate/         M2 — the gate binary: diff, cost, policy, verdict, report
 policies/     M2 — Rego rules (18, across resources/probes/privilege/images/network)
 manifests/    M3 — desired state; the only authority on what runs
-platform/     cluster substrate: kind config, Calico, pricing table
+platform/     cluster substrate: kind config, Calico, ArgoCD values
 gate.yaml     every value that can change a verdict, in version control
 docs/         LLD and architecture decisions
 ```
