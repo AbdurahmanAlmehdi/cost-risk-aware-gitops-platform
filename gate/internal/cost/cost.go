@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/pricing"
+	"github.com/AbdurahmanAlmehdi/gitops-platform/pricing"
 )
 
 const (

@@ -26,7 +26,7 @@ import (
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/config"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/cost"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/policy"
-	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/pricing"
+	"github.com/AbdurahmanAlmehdi/gitops-platform/pricing"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/render"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/report"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/verdict"
