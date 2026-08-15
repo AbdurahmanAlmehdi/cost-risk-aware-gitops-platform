@@ -1,0 +1,134 @@
+# M7 — Observability.
+#
+# Delivered through ArgoCD rather than installed by hand, so the monitoring stack is as
+# declarative as the workloads it monitors. ArgoCD itself is the only exception: something
+# has to apply the first object, and that bootstrap seam cannot bootstrap itself.
+#
+# The chart is trimmed hard. Every component left running occupies memory on the same node
+# whose cost M4 is attributing, so an unused alerting stack would literally inflate the
+# figures this platform exists to report.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 88.3.0
+    helm:
+      valuesObject:
+        # No alerting in scope: M7 is a demonstration surface, and M8a raises advisory
+        # flags through dashboards rather than pages.
+        alertmanager:
+          enabled: false
+        defaultRules:
+          create: false
+
+        # Node-level hardware metrics are not what this platform attributes cost from —
+        # M4 works per workload, from container metrics the kubelet already exposes.
+        # A DaemonSet on every node would cost more than the insight it adds here.
+        nodeExporter:
+          enabled: false
+
+        prometheusOperator:
+          nodeSelector:
+            workload: platform
+          tolerations:
+            - key: workload
+              operator: Equal
+              value: platform
+              effect: NoSchedule
+
+        # kube-state-metrics is NOT optional here. It is the only source of
+        # kube_pod_container_resource_requests, which is what lets M4 price *reserved*
+        # capacity and compare it against actual usage — the gap that the whole
+        # prediction-versus-reality argument rests on.
+        kube-state-metrics:
+          nodeSelector:
+            workload: platform
+          tolerations:
+            - key: workload
+              operator: Equal
+              value: platform
+              effect: NoSchedule
+
+        prometheus:
+          prometheusSpec:
+            retention: 24h
+            scrapeInterval: 30s
+            nodeSelector:
+              workload: platform
+            tolerations:
+              - key: workload
+                operator: Equal
+                value: platform
+                effect: NoSchedule
+            # By default the operator only adopts monitors carrying its own release
+            # label. The platform's PodMonitors live in manifests/ and are written by
+            # hand, so that restriction would silently ignore every one of them — the
+            # workloads would appear to have no metrics at all.
+            podMonitorSelectorNilUsesHelmValues: false
+            serviceMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            resources:
+              requests:
+                cpu: 150m
+                memory: 512Mi
+              limits:
+                memory: 1536Mi
+            # Persisted rather than emptyDir: M8a needs enough history to establish a
+            # baseline, and a baseline that resets on every pod restart can never detect
+            # an anomaly.
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+
+        grafana:
+          nodeSelector:
+            workload: platform
+          tolerations:
+            - key: workload
+              operator: Equal
+              value: platform
+              effect: NoSchedule
+          service:
+            type: NodePort
+            # Mapped to http://localhost:3000 by platform/kind/cluster.yaml.
+            nodePort: 30081
+          # Dashboards are ConfigMaps in Git, picked up by the sidecar. That keeps the
+          # platform's primary demonstration surface under review like everything else,
+          # instead of living as unversioned state clicked into a running Grafana.
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              searchNamespace: ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The stack ships CRDs large enough to exceed the annotation size limit that
+      # client-side apply relies on. Server-side apply avoids the failure entirely.
+      - ServerSideApply=true
