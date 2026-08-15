@@ -70,7 +70,7 @@ Full design: [`docs/LLD.md`](docs/LLD.md).
 | 0 | Cluster substrate | ✅ 3-node kind cluster, Calico, enforcement verified |
 | 1 | M1 Source & CI | ✅ Go workload, multi-arch build, GHCR digest-pinned publish |
 | 2 | **M2 Pre-Merge Gate** | ✅ Cost + policy sub-gates, 18 rules, 20 tests, live on PRs |
-| 3 | M3 GitOps Delivery | ⬜ ArgoCD, app-of-apps, drift detection |
+| 3 | M3 GitOps Delivery | ✅ ArgoCD app-of-apps; drift reverted in ~5s, merge→cluster in 41s |
 | 4 | M4 / M7 | ⬜ Cost exporter, Prometheus, Grafana correlation view |
 | 5 | M5 Elasticity | ⬜ KEDA on queue depth, HPA fallback |
 | 6 | M6 Security Baseline | ⬜ Default-deny, allow-lists, connectivity matrix |
@@ -93,11 +93,31 @@ NetworkPolicy happily under a CNI that ignores it, so `kubectl get networkpolicy
 nothing. kind's default CNI does not enforce policy at all, which is why Calico is
 installed at cluster-creation time rather than added later.
 
+Hand the cluster over to Git:
+
+```bash
+make gitops-bootstrap
+```
+
+That installs ArgoCD, grants it read access to this repository, and applies the root
+Application — the only object in the platform ever applied by hand. After it, adding a
+workload means committing a file.
+
 Run the gate against your working branch:
 
 ```bash
 make gate BASE=main
 ```
+
+Prove that Git actually governs the cluster rather than merely having populated it:
+
+```bash
+make drift-test
+```
+
+It edits a live resource the way an engineer would mid-incident and asserts the platform
+reverts it unattended. Until that is demonstrated, a cluster has two sources of truth and
+no way to say which is currently winning.
 
 ## How the gate works
 
