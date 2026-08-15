@@ -23,3 +23,14 @@ spec:
       # values that have not changed; slower would lose the resolution that makes a
       # scaling event and its cost line up on the same axis.
       interval: 30s
+      # Essential, and easy to miss.
+      #
+      # This exporter reports on *other* workloads, so every series it publishes carries
+      # the namespace it is talking about. By default Prometheus lets the scrape target's
+      # own labels win a collision, which rewrites every `namespace` label to
+      # "observability" — the namespace the exporter itself lives in. The figures stay
+      # correct while the attribution silently becomes nonsense: Redis, CoreDNS and the
+      # demo workloads would all appear to run in the monitoring namespace.
+      #
+      # honorLabels keeps the labels the exporter actually published.
+      honorLabels: true
