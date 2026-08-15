@@ -12,6 +12,7 @@ metadata:
     app.kubernetes.io/name: demo-api
     app.kubernetes.io/component: api
     app.kubernetes.io/part-of: demo
+    app.kubernetes.io/version: "0.1.0"
 spec:
   replicas: 2
   selector:
