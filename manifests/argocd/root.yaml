@@ -1,0 +1,36 @@
+# The root of the app-of-apps tree.
+#
+# This is the only object in the entire platform that is applied by hand. Everything else
+# — including every other Application — is created by ArgoCD from Git. That single manual
+# step is the bootstrap seam: after it, adding a workload means committing a file, not
+# running kubectl.
+#
+# Applications are themselves manifests under manifests/, so a change to how something is
+# delivered passes through M2 exactly like a change to what is delivered (LLD §9.4).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  # Without this finalizer, deleting the root Application orphans every child rather than
+  # cleaning them up, leaving resources in the cluster that Git no longer describes.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+    targetRevision: main
+    path: manifests/argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # Remove Applications whose files have been deleted from Git. Without prune, a
+      # deleted manifest leaves a running workload that nothing in the repository
+      # accounts for — and M4 keeps billing for it.
+      prune: true
+      # Revert manual changes. This is what makes Git the single authority rather than
+      # merely the usual source.
+      selfHeal: true

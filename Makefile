@@ -62,6 +62,58 @@ cluster-status: ## Show node and system-pod state
 		| grep -v Completed || echo "all pods Running or Completed"
 
 # -----------------------------------------------------------------------------
+# M3 — GitOps delivery
+# -----------------------------------------------------------------------------
+ARGOCD_CHART_VERSION := 10.3.3
+REPO_URL := https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+
+.PHONY: argocd
+argocd: ## Install ArgoCD onto the platform node
+	helm repo add argo https://argoproj.github.io/argo-helm >/dev/null
+	helm repo update argo >/dev/null
+	helm upgrade --install argocd argo/argo-cd \
+		--version $(ARGOCD_CHART_VERSION) \
+		--namespace argocd --create-namespace \
+		-f platform/argocd/values.yaml \
+		--wait --timeout 10m
+	@echo "ArgoCD UI: http://localhost:8080  (user: admin)"
+	@echo "password:  make argocd-password"
+
+.PHONY: argocd-repo-secret
+argocd-repo-secret: ## Grant ArgoCD read access to this repository
+	# The credential is read from the local gh CLI and written straight into the cluster.
+	# It is never committed, never echoed, and never leaves this machine — the cluster is
+	# local and disposable. Real deployments would use SOPS or a sealed-secrets
+	# controller so the encrypted secret could itself live in Git.
+	@kubectl create secret generic repo-gitops-platform \
+		--namespace argocd \
+		--from-literal=type=git \
+		--from-literal=url=$(REPO_URL) \
+		--from-literal=username=$$(gh api user --jq .login) \
+		--from-literal=password=$$(gh auth token) \
+		--dry-run=client -o yaml | kubectl apply -f - >/dev/null
+	@kubectl label secret repo-gitops-platform --namespace argocd \
+		argocd.argoproj.io/secret-type=repository --overwrite >/dev/null
+	@echo "repository credential installed"
+
+.PHONY: argocd-password
+argocd-password: ## Print the initial ArgoCD admin password
+	@kubectl -n argocd get secret argocd-initial-admin-secret \
+		-o jsonpath='{.data.password}' | base64 -d; echo
+
+.PHONY: gitops-bootstrap
+gitops-bootstrap: argocd argocd-repo-secret ## Install ArgoCD and hand the cluster over to Git
+	# The only manual apply in the platform. Everything after this comes from Git.
+	kubectl apply -f manifests/argocd/root.yaml
+	@echo
+	@echo "The cluster now reconciles toward Git. Watch it with:"
+	@echo "  kubectl -n argocd get applications -w"
+
+.PHONY: drift-test
+drift-test: ## Prove self-heal reverts a manual change to a live resource
+	@bash tools/drift-test.sh
+
+# -----------------------------------------------------------------------------
 # M2 — pre-merge gate
 # -----------------------------------------------------------------------------
 .PHONY: gate-build

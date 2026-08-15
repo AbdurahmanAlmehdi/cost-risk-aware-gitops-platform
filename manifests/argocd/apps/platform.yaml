@@ -1,0 +1,29 @@
+# Namespaces and other cluster-scoped prerequisites.
+#
+# Sync wave -1 puts this ahead of every workload. A Deployment whose namespace does not
+# yet exist fails to apply, and ArgoCD would report the whole tree as degraded for a
+# reason that has nothing to do with the workload itself.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+    targetRevision: main
+    path: manifests/platform
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      # Namespaces are deliberately NOT pruned. Pruning a namespace deletes everything
+      # inside it, including workloads owned by other Applications — far too destructive
+      # an outcome for what is usually a file being moved.
+      prune: false
+      selfHeal: true

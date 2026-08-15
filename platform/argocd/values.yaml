@@ -1,0 +1,89 @@
+# M3 — GitOps delivery control plane.
+#
+# ArgoCD is the only component in the platform that holds cluster write credentials. CI
+# holds none: delivery is pull-based, so a compromised pipeline cannot deploy to the
+# cluster (LLD §9.4). Everything ArgoCD applies has already passed M2.
+
+global:
+  # ArgoCD is platform infrastructure, so it runs on the tainted platform node alongside
+  # Redis. Keeping it off the apps node means M5 can scale workers freely without ever
+  # contending with the controller that is reconciling them.
+  nodeSelector:
+    workload: platform
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: platform
+      effect: NoSchedule
+
+configs:
+  params:
+    # Terminate TLS at the NodePort rather than inside the server. This is a local
+    # development cluster reached over a kind port mapping; running the server in
+    # insecure mode avoids a self-signed-certificate redirect loop in the browser.
+    # It would not be acceptable on a shared cluster.
+    server.insecure: true
+
+  cm:
+    # Ignore the replica count on Deployments that a ScaledObject owns.
+    #
+    # Without this, M3 and M5 fight: KEDA scales demo-worker to 6, ArgoCD sees live state
+    # diverge from Git (which says 1), and self-heal scales it straight back down. The
+    # symptom is a workload that oscillates under load and an autoscaler that appears not
+    # to work. This is the concrete boundary from the LLD — M5 owns *scale*, M3 owns
+    # *existence* — expressed as a diff exclusion.
+    resource.customizations.ignoreDifferences.apps_Deployment: |
+      jqPathExpressions:
+        - '.spec.replicas'
+
+server:
+  service:
+    type: NodePort
+    # Mapped to http://localhost:8080 by platform/kind/cluster.yaml.
+    nodePortHttp: 30080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+# Components the platform does not use. Each one disabled is memory returned to the
+# workloads being measured — this cluster runs on a laptop, and an idle component still
+# occupies the node whose cost M4 is attributing.
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  # This chart exposes no `enabled` key for the ApplicationSet controller — only
+  # `replicas`. Setting `applicationSet.enabled: false` is accepted silently by Helm and
+  # does nothing, which reads as disabled while the controller keeps running. Scaling to
+  # zero is the toggle that actually exists.
+  replicas: 0

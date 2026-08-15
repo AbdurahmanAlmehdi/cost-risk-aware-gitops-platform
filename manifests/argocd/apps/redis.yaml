@@ -1,0 +1,27 @@
+# The shared work queue. Wave 0: after namespaces, before the workloads that depend on it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+    targetRevision: main
+    path: manifests/apps/redis
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The namespace comes from the platform Application in wave -1; this is a safety
+      # net for a from-scratch bootstrap where wave ordering has not yet settled.
+      - CreateNamespace=true

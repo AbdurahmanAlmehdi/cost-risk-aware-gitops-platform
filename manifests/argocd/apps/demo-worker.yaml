@@ -1,0 +1,30 @@
+# The consumer tier, and the workload M5 scales.
+#
+# Its replica count is excluded from diffing cluster-wide (see the ignoreDifferences
+# setting in platform/argocd/values.yaml). Without that exclusion, self-heal would revert
+# every scale-up KEDA performs within seconds, and the autoscaling demonstration would
+# show a workload fighting its own delivery system.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-worker
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+    targetRevision: main
+    path: manifests/apps/demo-worker
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
