@@ -20,11 +20,12 @@ command -v ./bin/gate >/dev/null 2>&1 || { echo "build the gate first: make gate
 
 echo "==> pricing manifests with M2 (the pre-merge estimate)"
 ./bin/gate price --config gate.yaml --format json > /tmp/gate-price.json
-python3 -c "
+python3 - <<'PY'
 import json
 d = json.load(open('/tmp/gate-price.json'))
-print(f\"    pricing table v{d['pricing_version']}, {len(d['workloads'])} workloads, \\\${d['monthly_usd']:.2f}/month total\")
-"
+print("    pricing table v{}, {} workloads, ${:.2f}/month total".format(
+    d['pricing_version'], len(d['workloads']), d['monthly_usd']))
+PY
 
 echo "==> reading M4's live attribution from Prometheus"
 kubectl -n observability port-forward "$PROM_SVC" "${PROM_PORT}:9090" >/dev/null 2>&1 &
@@ -48,10 +49,11 @@ tolerance = float(sys.argv[1])
 
 predicted = {}
 for w in json.load(open('/tmp/gate-price.json'))['workloads']:
-    # "Deployment/demo/demo-worker" -> ("demo", "demo-worker")
-    parts = w['ref'].split('/')
-    if len(parts) == 3:
-        predicted[(parts[1], parts[2])] = w['monthly_usd']
+    # M4 attributes by (namespace, workload name), so the estimate is keyed the same way.
+    # The workload kind is deliberately not part of the key: a Deployment and the
+    # StatefulSet that replaced it are the same workload from a budgeting point of view.
+    if w.get('namespace') and w.get('name'):
+        predicted[(w['namespace'], w['name'])] = w['monthly_usd']
 
 live = json.load(open('/tmp/live-cost.json'))
 if live.get('status') != 'success':
@@ -71,7 +73,7 @@ print()
 print(f"{'WORKLOAD':<38} {'M2 PREDICTED':>13} {'M4 MEASURED':>13} {'DIFF':>9}")
 print("-" * 76)
 
-failures, compared = [], 0
+failures, missing, compared = [], [], 0
 for key in sorted(set(predicted) | set(measured)):
     ns, name = key
     p, m = predicted.get(key), measured.get(key)
@@ -79,11 +81,18 @@ for key in sorted(set(predicted) | set(measured)):
 
     if p is None:
         # Running but not described by any manifest the gate can see — either deployed
-        # outside GitOps, or delivered from a Helm chart the gate cannot render.
+        # outside GitOps, or delivered from a Helm chart the gate cannot render. Reported
+        # rather than failed: ArgoCD and the monitoring stack are legitimately in this
+        # category.
         print(f"{label:<38} {'—':>13} {m:>13.2f} {'not in Git':>9}")
         continue
     if m is None:
-        print(f"{label:<38} {p:>13.2f} {'—':>13} {'not live':>9}")
+        # This one IS a failure. Git says the workload exists and the gate priced it, but
+        # M4 cannot see it running. Either it never deployed, or — the subtler case —
+        # its cost is being attributed under the wrong labels, which is indistinguishable
+        # from absent when you look workload by workload.
+        print(f"{label:<38} {p:>13.2f} {'—':>13} {'MISSING':>9}")
+        missing.append(label)
         continue
 
     compared += 1
@@ -96,6 +105,15 @@ for key in sorted(set(predicted) | set(measured)):
 print()
 if not compared:
     print("FAIL: no workload appeared on both sides, so nothing was actually reconciled.")
+    raise SystemExit(1)
+
+if missing:
+    print(f"FAIL: {len(missing)} workload(s) exist in Git but were not measured live:")
+    for label in missing:
+        print(f"  {label}")
+    print()
+    print("Either they never deployed, or their cost is being attributed under different")
+    print("labels than expected — check honorLabels on the exporter's PodMonitor.")
     raise SystemExit(1)
 
 if failures:
