@@ -64,6 +64,26 @@ func (r *Repo) ChangedFiles(base, head, pathspec string) ([]string, error) {
 	return files, nil
 }
 
+// UncommittedChanges lists modified-but-uncommitted files under the given pathspec.
+//
+// The gate compares commits, which is exactly right in CI and a trap locally: running it
+// against a dirty working tree silently reports "nothing to evaluate" and exits 0. That
+// false green is the worst possible local behaviour — it tells an author their change is
+// fine before the change exists as far as the gate is concerned.
+func (r *Repo) UncommittedChanges(pathspec string) ([]string, error) {
+	out, err := r.git("status", "--porcelain", "--", pathspec)
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			files = append(files, trimmed)
+		}
+	}
+	return files, nil
+}
+
 // Worktree materialises a ref in a temporary directory so it can be rendered.
 //
 // A detached worktree is used rather than checking out in place: the gate must be able

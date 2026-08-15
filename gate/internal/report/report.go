@@ -38,6 +38,12 @@ func Markdown(v verdict.Verdict) string {
 			"This is a fault in the gate or its inputs, not necessarily a problem with your manifests.\n\n")
 	}
 
+	// Notes come before the findings: they qualify how much the verdict below is worth,
+	// and a caveat printed after the conclusion has already been read is too late.
+	for _, n := range v.Notes {
+		fmt.Fprintf(&b, "> ⚠️ %s\n\n", n)
+	}
+
 	if len(v.Reasons) > 0 {
 		b.WriteString("**Why:**\n\n")
 		for _, r := range v.Reasons {

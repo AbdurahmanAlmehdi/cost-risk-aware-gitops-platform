@@ -34,6 +34,10 @@ type Verdict struct {
 	// Reasons are the specific findings that produced a blocking decision, in the
 	// order they should be read.
 	Reasons []string `json:"reasons,omitempty"`
+	// Notes are caveats about the evaluation itself rather than findings about the
+	// change — conditions the reader needs in order to know how much the verdict is
+	// worth.
+	Notes []string `json:"notes,omitempty"`
 
 	Cost   CostVerdict   `json:"cost"`
 	Policy PolicyVerdict `json:"policy"`

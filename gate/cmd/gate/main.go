@@ -94,6 +94,15 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		HeadRef:        head,
 	}
 
+	// The comparison is between commits, so anything still sitting in the working tree
+	// is invisible to it. Locally that turns an unstaged change into a confident pass.
+	if dirty, dirtyErr := repo.UncommittedChanges(cfg.Spec.Paths.Manifests); dirtyErr == nil && len(dirty) > 0 {
+		v.Notes = append(v.Notes, fmt.Sprintf(
+			"%d uncommitted manifest change(s) were NOT evaluated — the gate compares commits. "+
+				"Commit them and re-run, or this verdict does not describe your working tree.",
+			len(dirty)))
+	}
+
 	// No manifest changed: there is nothing for either sub-gate to evaluate, and the
 	// gate passes without pretending to have checked anything. This is reported
 	// explicitly rather than as an empty green tick.
@@ -196,6 +205,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 	aggregated.BaseRef = base
 	aggregated.HeadRef = head
 	aggregated.EvaluatedRoots = v.EvaluatedRoots
+	aggregated.Notes = v.Notes
 
 	return emit(aggregated, format, outputPath)
 }
