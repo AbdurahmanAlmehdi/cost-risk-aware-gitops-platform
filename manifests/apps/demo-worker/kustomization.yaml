@@ -7,5 +7,12 @@ resources:
 
 images:
   - name: demo-app
-    newName: gitops-platform/app
-    newTag: dev
+    newName: ghcr.io/abdurahmanalmehdi/cost-risk-aware-gitops-platform/app
+    # Pinned to a digest, never a tag. A tag is a mutable pointer: the bytes behind it can
+    # be replaced after M2 has approved them, so everything the gate checked would describe
+    # an artefact that is no longer the one being deployed. The digest is what makes
+    # "what M2 evaluated is what M3 deploys" a guarantee rather than an intention.
+    #
+    # This is the one line CI rewrites when publishing a new image, which keeps an image
+    # update a one-line, reviewable diff that passes through the gate like any other change.
+    digest: sha256:1b00901187b7f756258078623ce13f9fac6122f9c58281be2d653be66ec41079
