@@ -62,16 +62,6 @@ spec:
     # Severities that cause a failing verdict. Anything else is reported as a warning.
     failOnSeverity: ["block"]
 
-    # Graduated rollout. GATE-014/015 require digest-pinned images, which only exist
-    # once CI has published one — so until the first image is published and the
-    # manifests reference it by digest, these run as warnings. They are promoted to
-    # `block` in the same change that pins the manifests, at which point the LLD's
-    # byte-identical contract becomes enforceable rather than aspirational.
-    # Every override is printed in the pull-request report, so a downgraded rule is
-    # never silently absent.
-    severityOverrides:
-      GATE-014: warn
-      GATE-015: warn
     # An erroring rule is NOT a passing rule (LLD §2.5 — fail safe on uncertainty).
     treatErrorAsBlocking: true
 
