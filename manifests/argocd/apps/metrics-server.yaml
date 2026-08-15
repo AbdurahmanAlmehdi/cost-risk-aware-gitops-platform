@@ -1,0 +1,49 @@
+# The resource metrics API — the source behind M5's fallback scaling trigger.
+#
+# Kubernetes does not ship this, and kind does not add it, so `kubectl top` and any HPA
+# CPU target read "unknown" on a stock cluster. That is precisely the state M5's CPU
+# trigger was in: present in the manifest, visible in the HPA, and incapable of ever
+# firing. A fallback that cannot fire is worse than no fallback, because it looks like
+# coverage.
+#
+# Prometheus does not substitute for it. Prometheus scrapes cAdvisor for dashboards; the
+# HPA reads metrics.k8s.io, which only this serves.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  annotations:
+    # Wave -1: KEDA's CPU trigger is useless until this exists, so it comes up first.
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/metrics-server/
+    chart: metrics-server
+    targetRevision: 3.13.1
+    helm:
+      valuesObject:
+        args:
+          # kind's kubelets serve their metrics endpoint with certificates signed by the
+          # cluster CA but issued for names metrics-server cannot verify. Without this it
+          # fails every scrape with an x509 error and reports no metrics at all — the
+          # single most common reason metrics-server appears installed but never works.
+          # Acceptable here because the traffic never leaves the node's own network.
+          - --kubelet-insecure-tls
+          - --kubelet-preferred-address-types=InternalIP,Hostname,ExternalIP
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
