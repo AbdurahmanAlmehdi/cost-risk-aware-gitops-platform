@@ -31,7 +31,7 @@ Each supplies something the others need in order to be more than a demo:
 - Cost attribution without autoscaling shows a flat line with nothing to explain it.
 - A pre-merge cost gate without live attribution produces an estimate nobody can check.
 
-The join is the pricing table. `platform/pricing/pricing.yaml` is read by both the
+The join is the pricing table. `manifests/apps/cost-exporter/pricing.yaml` is read by both the
 pre-merge estimate (M2) and the live cost exporter (M4), so prediction and measurement are
 expressed in the same units at the same rates and can be placed on one axis and compared.
 Two tables would produce two numbers that look comparable and are not — and that
@@ -71,7 +71,7 @@ Full design: [`docs/LLD.md`](docs/LLD.md).
 | 1 | M1 Source & CI | ✅ Go workload, multi-arch build, GHCR digest-pinned publish |
 | 2 | **M2 Pre-Merge Gate** | ✅ Cost + policy sub-gates, 18 rules, 20 tests, live on PRs |
 | 3 | M3 GitOps Delivery | ✅ ArgoCD app-of-apps; drift reverted in ~5s, merge→cluster in 41s |
-| 4 | M4 / M7 | ⬜ Cost exporter, Prometheus, Grafana correlation view |
+| 4 | M4 / M7 | ✅ Cost exporter, Prometheus, Grafana; prediction reconciles with measurement |
 | 5 | M5 Elasticity | ⬜ KEDA on queue depth, HPA fallback |
 | 6 | M6 Security Baseline | ⬜ Default-deny, allow-lists, connectivity matrix |
 | 7 | M8 Cost Intelligence | ⬜ Anomaly baseline, PR explainer |
@@ -118,6 +118,30 @@ make drift-test
 It edits a live resource the way an engineer would mid-incident and asserts the platform
 reverts it unattended. Until that is demonstrated, a cluster has two sources of truth and
 no way to say which is currently winning.
+
+Check the platform's central claim — that the cost predicted before merge is the cost
+actually being reserved:
+
+```bash
+make reconcile
+```
+
+M2 prices manifests in Git; M4 prices what the cluster reserved. Both read the same rate
+table through the same code, so the two figures are directly comparable. Where they
+disagree, something real has happened — a workload scaled outside Git, a manifest that
+never landed, or an assumption in the estimate that does not hold.
+
+```
+WORKLOAD                                M2 PREDICTED   M4 MEASURED      DIFF
+demo/demo-api                                   5.00          5.00        ok
+demo/demo-worker                               11.73         11.73        ok
+demo/redis                                      2.69          2.69        ok
+observability/cost-exporter                     1.35          1.35        ok
+```
+
+Workloads reported as `not in Git` are a deliberate, honest gap: ArgoCD and the monitoring
+stack are delivered from Helm charts, and the cost sub-gate can only price what it renders
+from the repository.
 
 ## How the gate works
 
@@ -168,7 +192,7 @@ app/          M1 — the demo workload (API producer + queue worker)
 gate/         M2 — the gate binary: diff, cost, policy, verdict, report
 policies/     M2 — Rego rules (18, across resources/probes/privilege/images/network)
 manifests/    M3 — desired state; the only authority on what runs
-platform/     cluster substrate: kind config, Calico, pricing table
+platform/     cluster substrate: kind config, Calico, ArgoCD values
 gate.yaml     every value that can change a verdict, in version control
 docs/         LLD and architecture decisions
 ```
