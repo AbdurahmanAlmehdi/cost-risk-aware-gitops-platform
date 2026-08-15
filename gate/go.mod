@@ -3,6 +3,7 @@ module github.com/AbdurahmanAlmehdi/gitops-platform/gate
 go 1.24.6
 
 require (
+	github.com/AbdurahmanAlmehdi/gitops-platform/pricing v0.0.0
 	github.com/open-policy-agent/opa v1.10.1
 	k8s.io/apimachinery v0.34.1
 	sigs.k8s.io/kustomize/api v0.20.1
@@ -74,3 +75,8 @@ require (
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 )
+
+// The pricing table has exactly one implementation, shared with M4's cost exporter.
+// Two parsers of the same YAML would drift, and a drifted rate makes the pre-merge
+// estimate and the live measurement quietly incomparable.
+replace github.com/AbdurahmanAlmehdi/gitops-platform/pricing => ../pricing

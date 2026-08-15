@@ -8,7 +8,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/cost"
-	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/pricing"
+	"github.com/AbdurahmanAlmehdi/gitops-platform/pricing"
 )
 
 // table uses round numbers so every expected figure below can be verified by hand. A test
