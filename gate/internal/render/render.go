@@ -168,6 +168,42 @@ func Roots(treeDir string, changedFiles []string, manifestsPath string) ([]strin
 	return roots, nil
 }
 
+// AllRoots enumerates every renderable directory under the manifests tree.
+//
+// Used when a change has cluster-wide cost consequences that the changed-file list cannot
+// express. Editing a rate in the pricing table touches one file in one directory, but it
+// re-prices every workload in the repository — evaluating only the root that happens to
+// contain the table would report a trivial delta for a change that alters the entire bill.
+func AllRoots(treeDir, manifestsPath string) ([]string, error) {
+	manifestsAbs := filepath.Clean(filepath.Join(treeDir, manifestsPath))
+
+	var roots []string
+	err := filepath.WalkDir(manifestsAbs, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if hasKustomization(path) {
+			roots = append(roots, path)
+			// A nested directory is a component of this build, not a root of its own;
+			// descending would render the same objects twice and double their cost.
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("enumerate manifest roots under %s: %w", manifestsAbs, err)
+	}
+
+	sort.Strings(roots)
+	return roots, nil
+}
+
 func hasKustomization(dir string) bool {
 	for _, name := range kustomizationNames {
 		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {

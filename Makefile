@@ -128,6 +128,22 @@ gate-test: ## Run the gate's golden-fixture tests
 gate: gate-build ## Run the gate locally against the working tree (BASE=<ref>)
 	./bin/gate evaluate --config gate.yaml --base $${BASE:-origin/main}
 
+.PHONY: cost
+cost: gate-build ## Price the manifests as they stand, with no comparison
+	./bin/gate price --config gate.yaml
+
+# -----------------------------------------------------------------------------
+# M4 / M7 — cost attribution and observability
+# -----------------------------------------------------------------------------
+.PHONY: reconcile
+reconcile: gate-build ## Check M2's pre-merge estimate against M4's live measurement
+	@bash tools/reconcile.sh
+
+.PHONY: grafana-password
+grafana-password: ## Print the Grafana admin password
+	@kubectl -n observability get secret observability-grafana \
+		-o jsonpath='{.data.admin-password}' | base64 -d; echo
+
 # -----------------------------------------------------------------------------
 # Aggregate
 # -----------------------------------------------------------------------------

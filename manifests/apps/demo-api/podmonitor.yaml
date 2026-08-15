@@ -1,0 +1,21 @@
+# Scrape the producer tier.
+#
+# The API is what publishes app_queue_depth — the shared backlog M5 scales on and M7
+# charts against cost. Without this scrape the demand signal exists inside the pod and
+# nowhere else, and the entire demand → replicas → spend correlation has no data behind it.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: demo-api
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/part-of: demo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

@@ -26,10 +26,10 @@ import (
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/config"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/cost"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/policy"
-	"github.com/AbdurahmanAlmehdi/gitops-platform/pricing"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/render"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/report"
 	"github.com/AbdurahmanAlmehdi/gitops-platform/gate/internal/verdict"
+	"github.com/AbdurahmanAlmehdi/gitops-platform/pricing"
 )
 
 const (
@@ -39,11 +39,109 @@ const (
 )
 
 func main() {
-	if len(os.Args) < 2 || os.Args[1] != "evaluate" {
-		fmt.Fprintln(os.Stderr, "usage: gate evaluate --config <path> --base <ref> [--head <ref>] [--format markdown|json]")
-		os.Exit(exitInconclusive)
+	if len(os.Args) < 2 {
+		usage()
 	}
 
+	switch os.Args[1] {
+	case "evaluate":
+		evaluateCmd()
+	case "price":
+		priceCmd()
+	default:
+		usage()
+	}
+}
+
+func usage() {
+	fmt.Fprintln(os.Stderr, "usage:")
+	fmt.Fprintln(os.Stderr, "  gate evaluate --config <path> --base <ref> [--head <ref>] [--format markdown|json]")
+	fmt.Fprintln(os.Stderr, "  gate price    --config <path> [--path <manifest dir>] [--format table|json]")
+	os.Exit(exitInconclusive)
+}
+
+// priceCmd prices the manifests as they stand, with no comparison.
+//
+// `evaluate` answers "what does this change cost", which is the merge decision. This
+// answers "what does this cost", which is the figure M4 measures against: it is what makes
+// the platform's central claim checkable rather than merely asserted, since the same rate
+// table and the same code produce the pre-merge estimate and the live attribution.
+func priceCmd() {
+	fs := flag.NewFlagSet("price", flag.ExitOnError)
+	var (
+		configPath = fs.String("config", "gate.yaml", "path to the gate configuration")
+		repoPath   = fs.String("repo", ".", "path to the repository root")
+		path       = fs.String("path", "", "manifest directory to price (default: every root)")
+		format     = fs.String("format", "table", "output format: table or json")
+	)
+	_ = fs.Parse(os.Args[2:])
+
+	if err := runPrice(*configPath, *repoPath, *path, *format); err != nil {
+		fmt.Fprintf(os.Stderr, "gate: %v\n", err)
+		os.Exit(exitInconclusive)
+	}
+}
+
+func runPrice(configPath, repoPath, path, format string) error {
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return err
+	}
+	repo, err := render.NewRepo(repoPath)
+	if err != nil {
+		return err
+	}
+	table, err := pricing.Load(filepath.Join(repo.Root(), cfg.Spec.Paths.Pricing))
+	if err != nil {
+		return err
+	}
+
+	var roots []string
+	if path != "" {
+		roots = []string{filepath.Join(repo.Root(), path)}
+	} else {
+		if roots, err = render.AllRoots(repo.Root(), cfg.Spec.Paths.Manifests); err != nil {
+			return err
+		}
+	}
+
+	calc := cost.New(table, cfg.Spec.Cost.AssumedNodeCount)
+	var estimate cost.Estimate
+	for _, root := range roots {
+		objects, err := render.Dir(root)
+		if err != nil {
+			return fmt.Errorf("rendering %s: %w", root, err)
+		}
+		est, err := calc.Estimate(objects)
+		if err != nil {
+			return fmt.Errorf("pricing %s: %w", root, err)
+		}
+		estimate = mergeEstimates(estimate, est)
+	}
+
+	if strings.ToLower(format) == "json" {
+		raw, err := json.MarshalIndent(map[string]any{
+			"pricing_version": table.Metadata.Version,
+			"currency":        table.Spec.Currency,
+			"monthly_usd":     estimate.MonthlyUSD,
+			"workloads":       estimate.Workloads,
+		}, "", "  ")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(raw))
+		return nil
+	}
+
+	fmt.Printf("%-40s %10s %14s\n", "WORKLOAD", "REPLICAS", "MONTHLY "+table.Spec.Currency)
+	for _, w := range estimate.Workloads {
+		fmt.Printf("%-40s %10d %14.2f\n", w.Ref(), w.Replicas, w.MonthlyUSD)
+	}
+	fmt.Printf("%-40s %10s %14.2f\n", "TOTAL", "", estimate.MonthlyUSD)
+	return nil
+}
+
+func evaluateCmd() {
 	fs := flag.NewFlagSet("evaluate", flag.ExitOnError)
 	var (
 		configPath = fs.String("config", "gate.yaml", "path to the gate configuration")
@@ -76,12 +174,14 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		return 0, err
 	}
 
-	table, err := pricing.Load(filepath.Join(repo.Root(), cfg.Spec.Paths.Pricing))
+	changed, err := repo.ChangedFiles(base, head, cfg.Spec.Paths.Manifests)
 	if err != nil {
 		return 0, err
 	}
 
-	changed, err := repo.ChangedFiles(base, head, cfg.Spec.Paths.Manifests)
+	// Provenance is filled in from the head table once the worktrees exist; this copy
+	// only serves the early-return paths below.
+	table, err := pricing.Load(filepath.Join(repo.Root(), cfg.Spec.Paths.Pricing))
 	if err != nil {
 		return 0, err
 	}
@@ -126,11 +226,42 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 	}
 	defer cleanupBase()
 
+	// Each side is priced with its own rate table, so a change to the rates shows up as a
+	// real cost delta. Pricing both sides from one table would make a repricing of the
+	// entire estate report as $0.00 — the two figures would differ only by whatever else
+	// the pull request happened to touch.
+	baseTable, headTable, pricingNote, err := loadPricingTables(baseTree, headTree, cfg.Spec.Paths.Pricing)
+	if err != nil {
+		return 0, err
+	}
+	v.PricingVersion = headTable.Metadata.Version
+	v.PricingSource = headTable.Metadata.Source
+	v.Currency = headTable.Spec.Currency
+	if pricingNote != "" {
+		v.Notes = append(v.Notes, pricingNote)
+	}
+
 	// Roots are resolved from the head tree: a directory that exists only at head is a
 	// newly-added workload and must still be evaluated.
 	roots, err := render.Roots(headTree, changed, cfg.Spec.Paths.Manifests)
 	if err != nil {
 		return 0, err
+	}
+
+	// A rate change is a one-file diff with cluster-wide consequences. Scoping the
+	// evaluation to the directory that happens to contain the pricing table would report
+	// a trivial delta for a change that re-prices everything the platform runs.
+	if ratesChanged(baseTable, headTable) {
+		allRoots, rootsErr := render.AllRoots(headTree, cfg.Spec.Paths.Manifests)
+		if rootsErr != nil {
+			return 0, rootsErr
+		}
+		roots = allRoots
+		v.Notes = append(v.Notes, fmt.Sprintf(
+			"the pricing table changed (v%d → v%d), so **every** manifest root was re-priced, "+
+				"not only the ones this pull request edits — a rate change alters the cost of "+
+				"everything the platform runs.",
+			baseTable.Metadata.Version, headTable.Metadata.Version))
 	}
 	for _, r := range roots {
 		rel, relErr := filepath.Rel(headTree, r)
@@ -140,13 +271,14 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		v.EvaluatedRoots = append(v.EvaluatedRoots, rel)
 	}
 
-	calc := cost.New(table, cfg.Spec.Cost.AssumedNodeCount)
+	baseCalc := cost.New(baseTable, cfg.Spec.Cost.AssumedNodeCount)
+	headCalc := cost.New(headTable, cfg.Spec.Cost.AssumedNodeCount)
 
 	var (
-		headObjects []cost.Object
+		headObjects  []cost.Object
 		baseEstimate cost.Estimate
 		headEstimate cost.Estimate
-		costErrors  []string
+		costErrors   []string
 	)
 
 	for _, root := range roots {
@@ -165,7 +297,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		}
 		headObjects = append(headObjects, headObjs...)
 
-		he, err := calc.Estimate(headObjs)
+		he, err := headCalc.Estimate(headObjs)
 		if err != nil {
 			costErrors = append(costErrors, fmt.Sprintf("pricing %s at head: %v", rel, err))
 			continue
@@ -177,7 +309,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 			costErrors = append(costErrors, fmt.Sprintf("rendering %s at base: %v", rel, err))
 			continue
 		}
-		be, err := calc.Estimate(baseObjs)
+		be, err := baseCalc.Estimate(baseObjs)
 		if err != nil {
 			costErrors = append(costErrors, fmt.Sprintf("pricing %s at base: %v", rel, err))
 			continue
@@ -208,6 +340,41 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 	aggregated.Notes = v.Notes
 
 	return emit(aggregated, format, outputPath)
+}
+
+// loadPricingTables reads the rate table as it exists on each side of the comparison.
+//
+// The base table may legitimately be absent — the pull request that first introduces a
+// pricing table has no earlier version to compare against. In that case the head table
+// stands in for both sides and the substitution is reported, because silently pricing the
+// baseline with new rates would make an unrelated repricing look like a free change.
+func loadPricingTables(baseTree, headTree, pricingPath string) (base, head *pricing.Table, note string, err error) {
+	head, err = pricing.Load(filepath.Join(headTree, pricingPath))
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("pricing table at head: %w", err)
+	}
+
+	base, err = pricing.Load(filepath.Join(baseTree, pricingPath))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return head, head, "no pricing table exists at the base commit, so the baseline was " +
+				"priced with the incoming rates; the delta reflects manifest changes only", nil
+		}
+		return nil, nil, "", fmt.Errorf("pricing table at base: %w", err)
+	}
+	return base, head, "", nil
+}
+
+// ratesChanged reports whether the two tables would price identical manifests differently.
+//
+// Only fields that affect a computed figure are compared. Editing the table's `source`
+// annotation or its retrieval date changes the document without changing a single price,
+// and re-pricing the entire repository for a comment edit would bury the real signal.
+func ratesChanged(base, head *pricing.Table) bool {
+	return base.Spec.Rates != head.Spec.Rates ||
+		base.Spec.HoursPerMonth != head.Spec.HoursPerMonth ||
+		base.Spec.MissingRequests != head.Spec.MissingRequests ||
+		base.Spec.Currency != head.Spec.Currency
 }
 
 func mergeEstimates(a, b cost.Estimate) cost.Estimate {

@@ -15,7 +15,7 @@ spec:
   paths:
     manifests: manifests/
     policies: policies/
-    pricing: platform/pricing/pricing.yaml
+    pricing: manifests/apps/cost-exporter/pricing.yaml
 
   # ---------------------------------------------------------------------------
   # Cost sub-gate
