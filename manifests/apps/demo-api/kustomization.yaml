@@ -4,6 +4,7 @@ namespace: demo
 
 resources:
   - deployment.yaml
+  - podmonitor.yaml
   - service.yaml
 
 # The single line CI rewrites on every merge, and the single line M2 reads to know

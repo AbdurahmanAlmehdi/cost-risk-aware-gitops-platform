@@ -4,6 +4,7 @@ namespace: demo
 
 resources:
   - deployment.yaml
+  - podmonitor.yaml
 
 images:
   - name: demo-app

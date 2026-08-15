@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+
+resources:
+  - deployment.yaml
+  - podmonitor.yaml
+
+# The pricing table is delivered to the cluster as a ConfigMap generated from the very
+# same file M2 reads to price pull requests. It lives inside this kustomize root because
+# kustomize refuses to read files outside its root — and a copy kept elsewhere would be a
+# second source of truth, which is the one thing this table must never have.
+#
+# The generated name carries a content hash, so editing a rate produces a new ConfigMap
+# name, which rolls the exporter automatically. Without the hash the exporter would keep
+# serving figures computed from rates that are no longer in Git.
+configMapGenerator:
+  - name: pricing-table
+    files:
+      - pricing.yaml
+
+images:
+  - name: cost-exporter
+    newName: ghcr.io/abdurahmanalmehdi/cost-risk-aware-gitops-platform/cost-exporter
+    digest: sha256:e2f655ed733b45acbecb76ce934412938355fa39b269790b49f43752e12e5517

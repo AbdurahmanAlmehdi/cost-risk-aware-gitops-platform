@@ -1,0 +1,187 @@
+# M7 — the platform's primary demonstration surface.
+#
+# The dashboard is a ConfigMap in Git, picked up by Grafana's sidecar, so the surface the
+# project is judged on is version-controlled and reviewed like everything else. A
+# dashboard clicked together in a running Grafana is unversioned state that disappears
+# with the pod.
+#
+# Panel order is the argument the platform makes, in sequence: what we reserve versus what
+# we use, where the gap is, and what caused it to move.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-finops
+  namespace: observability
+  labels:
+    # Watched by the Grafana sidecar (see the observability Application).
+    grafana_dashboard: "1"
+data:
+  finops.json: |
+    {
+      "title": "Cost- and Risk-Aware GitOps Platform",
+      "uid": "gitops-finops",
+      "schemaVersion": 39,
+      "version": 1,
+      "editable": true,
+      "time": { "from": "now-1h", "to": "now" },
+      "refresh": "30s",
+      "templating": { "list": [] },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Reserved vs actual spend (whole cluster)",
+          "description": "The platform's central claim in one panel. 'requested' is capacity the scheduler reserved and is what M2 priced before merge; 'actual' is what the workloads consumed. The area between them is money spent on capacity nobody used.",
+          "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "custom": { "fillOpacity": 12, "lineWidth": 2 }
+            },
+            "overrides": []
+          },
+          "options": { "legend": { "displayMode": "table", "calcs": ["last", "max"], "placement": "bottom" } },
+          "targets": [
+            {
+              "expr": "sum by (basis) (gitops_platform_workload_cost_usd_per_month)",
+              "legendFormat": "{{basis}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Monthly waste (reserved but unused)",
+          "description": "Reserved cost minus actual cost. This is the number a FinOps review acts on, and neither a pre-merge estimate nor a usage dashboard can produce it alone.",
+          "gridPos": { "h": 5, "w": 8, "x": 0, "y": 9 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 5 },
+                  { "color": "red", "value": 20 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum(gitops_platform_workload_cost_usd_per_month{basis=\"requested\"}) - sum(gitops_platform_workload_cost_usd_per_month{basis=\"actual\"})",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Utilisation of reserved capacity",
+          "description": "Actual as a share of reserved. Low utilisation is not a fault — it is headroom that was paid for.",
+          "gridPos": { "h": 5, "w": 8, "x": 8, "y": 9 },
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "min": 0, "max": 1 },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum(gitops_platform_workload_cost_usd_per_month{basis=\"actual\"}) / clamp_min(sum(gitops_platform_workload_cost_usd_per_month{basis=\"requested\"}), 0.0001)",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Cost data freshness",
+          "description": "Seconds since the last successful collection. Distinguishes 'cost is zero' from 'cost is stale' — two states that look identical on a cost chart.",
+          "gridPos": { "h": 5, "w": 8, "x": 16, "y": 9 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "red", "value": 120 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "expr": "time() - gitops_platform_cost_last_success_timestamp_seconds", "refId": "A" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Monthly cost by workload (reserved)",
+          "description": "Per-workload attribution. These are the same figures, computed from the same rate table, that M2 quotes in a pull-request comment before the change merges.",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
+          "fieldConfig": {
+            "defaults": { "unit": "currencyUSD", "custom": { "fillOpacity": 20, "stacking": { "mode": "normal" } } },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "sum by (namespace, workload) (gitops_platform_workload_cost_usd_per_month{basis=\"requested\"})",
+              "legendFormat": "{{namespace}}/{{workload}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Demand → replicas → spend",
+          "description": "The correlation view (LLD §7.1). Queue depth is the demand signal M5 scales on; worker replicas are its response; worker cost is the consequence. All three on one axis is what turns 'it autoscales' into a claim a reader can check.",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 14 },
+          "fieldConfig": {
+            "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 0 } },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "worker cost ($/month)" },
+                "properties": [
+                  { "id": "unit", "value": "currencyUSD" },
+                  { "id": "custom.axisPlacement", "value": "right" }
+                ]
+              }
+            ]
+          },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+          "targets": [
+            { "expr": "sum(app_queue_depth)", "legendFormat": "queue depth", "refId": "A" },
+            {
+              "expr": "sum(kube_deployment_status_replicas{namespace=\"demo\", deployment=\"demo-worker\"})",
+              "legendFormat": "worker replicas",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(gitops_platform_workload_cost_usd_per_month{workload=\"demo-worker\", basis=\"requested\"})",
+              "legendFormat": "worker cost ($/month)",
+              "refId": "C"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Queueing delay (did scaling actually help?)",
+          "description": "The 95th percentile wait before a worker picks up a job. Replica count proves the autoscaler acted; this proves the action worked.",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+          "fieldConfig": {
+            "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(app_job_wait_seconds_bucket[2m])))",
+              "legendFormat": "p95 wait",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(app_job_wait_seconds_bucket[2m])))",
+              "legendFormat": "median wait",
+              "refId": "B"
+            }
+          ]
+        }
+      ]
+    }

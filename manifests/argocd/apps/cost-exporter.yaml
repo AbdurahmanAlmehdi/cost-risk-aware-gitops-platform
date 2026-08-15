@@ -1,0 +1,27 @@
+# M4 — cost attribution, delivered like any other workload.
+#
+# Wave 1: it depends on Prometheus (wave 0) both to query and to be scraped by.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cost-exporter
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+    targetRevision: main
+    path: manifests/apps/cost-exporter
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

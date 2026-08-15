@@ -1,0 +1,21 @@
+# Scrape the consumer tier.
+#
+# Worker metrics are what show that scaling actually helped: app_job_wait_seconds is the
+# queueing delay that degrades under load and recovers once replicas increase. Replica
+# count alone proves only that the autoscaler acted, not that the action worked.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: demo-worker
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-worker
+    app.kubernetes.io/part-of: demo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-worker
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

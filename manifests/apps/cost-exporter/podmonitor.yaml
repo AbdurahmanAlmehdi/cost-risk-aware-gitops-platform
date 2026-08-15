@@ -1,0 +1,25 @@
+# Prometheus scrapes the exporter directly, with no Service in between.
+#
+# A PodMonitor rather than a ServiceMonitor because nothing needs to *route* to this
+# workload — it is only ever read by Prometheus. Introducing a Service to satisfy a
+# monitoring tool would create an endpoint the platform's own policy would then require a
+# readiness probe for, to serve traffic that never arrives.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cost-exporter
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: cost-exporter
+    app.kubernetes.io/part-of: gitops-platform
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cost-exporter
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      # Matches the exporter's own collection interval. Scraping faster would resample
+      # values that have not changed; slower would lose the resolution that makes a
+      # scaling event and its cost line up on the same axis.
+      interval: 30s
