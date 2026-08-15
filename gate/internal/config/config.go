@@ -47,12 +47,32 @@ const (
 )
 
 type CostConfig struct {
-	Mode                   Mode       `json:"mode"`
-	Block                  Thresholds `json:"block"`
-	Warn                   Thresholds `json:"warn"`
-	AllowUnboundedDecrease bool       `json:"allowUnboundedDecrease"`
-	AssumedNodeCount       int        `json:"assumedNodeCount"`
-	Baseline               string     `json:"baseline"`
+	Mode                   Mode              `json:"mode"`
+	Block                  Thresholds        `json:"block"`
+	Warn                   Thresholds        `json:"warn"`
+	AllowUnboundedDecrease bool              `json:"allowUnboundedDecrease"`
+	AssumedNodeCount       int               `json:"assumedNodeCount"`
+	Baseline               string            `json:"baseline"`
+	Autoscaling            AutoscalingBudget `json:"autoscaling"`
+}
+
+// AutoscalingBudget governs elastic headroom separately from committed spend.
+//
+// The thresholds above apply to the floor: spend the change commits to unconditionally.
+// These apply to the ceiling: spend it authorises under load. Judging both by one budget
+// gets both wrong — a percentage cap tight enough to catch a careless replica bump makes
+// any autoscaler unadoptable, since elasticity's whole purpose is a large ratio between
+// idle and peak.
+type AutoscalingBudget struct {
+	// MaxCeilingDeltaUSD caps how much additional burst capacity a single change may
+	// authorise, in monthly terms at full scale.
+	MaxCeilingDeltaUSD float64 `json:"maxCeilingDeltaUSD"`
+	// WarnCeilingDeltaUSD reports without blocking.
+	WarnCeilingDeltaUSD float64 `json:"warnCeilingDeltaUSD"`
+	// MaxBurstRatio caps how many times its committed cost a workload may burst to.
+	// An unbounded ratio is how a workload ends up idling at $2 and capable of $2,000 —
+	// each individual change looking reasonable on its own.
+	MaxBurstRatio float64 `json:"maxBurstRatio"`
 }
 
 type Thresholds struct {
@@ -153,6 +173,13 @@ func (c *Config) validate() error {
 
 	if c.Spec.Cost.AssumedNodeCount < 1 {
 		return fmt.Errorf("spec.cost.assumedNodeCount must be >= 1")
+	}
+	if c.Spec.Cost.Autoscaling.MaxCeilingDeltaUSD <= 0 {
+		return fmt.Errorf("spec.cost.autoscaling.maxCeilingDeltaUSD must be > 0, otherwise a change " +
+			"could authorise unlimited burst capacity without the gate noticing")
+	}
+	if c.Spec.Cost.Autoscaling.MaxBurstRatio < 1 {
+		return fmt.Errorf("spec.cost.autoscaling.maxBurstRatio must be >= 1")
 	}
 	if len(c.Spec.Policy.FailOnSeverity) == 0 {
 		return fmt.Errorf("spec.policy.failOnSeverity must list at least one severity")

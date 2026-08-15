@@ -17,6 +17,11 @@ func cfg(mutate func(*config.Config)) *config.Config {
 			Warn:                   config.Thresholds{MaxMonthlyDeltaUSD: 10, MaxPercentIncrease: 10},
 			AllowUnboundedDecrease: true,
 			AssumedNodeCount:       3,
+			Autoscaling: config.AutoscalingBudget{
+				MaxCeilingDeltaUSD:  75,
+				WarnCeilingDeltaUSD: 40,
+				MaxBurstRatio:       8,
+			},
 		},
 		Policy: config.PolicyConfig{
 			FailOnSeverity:       []string{"block"},
@@ -29,17 +34,51 @@ func cfg(mutate func(*config.Config)) *config.Config {
 	return c
 }
 
+// delta builds a change with no autoscaling involved, where committed spend and the
+// authorised ceiling are by definition the same number — a workload with no autoscaler is
+// committed to every replica it declares.
 func delta(deltaUSD, baseline float64) cost.Delta {
 	d := cost.Delta{
 		BaselineMonthlyUSD:  baseline,
 		ProjectedMonthlyUSD: baseline + deltaUSD,
 		DeltaMonthlyUSD:     deltaUSD,
+
+		CommittedBaselineUSD:  baseline,
+		CommittedProjectedUSD: baseline + deltaUSD,
+		CommittedDeltaUSD:     deltaUSD,
 	}
 	if baseline > 0 {
 		d.PercentIncrease = deltaUSD / baseline * 100
 		d.HasPercentBasis = true
+		d.CommittedPercent = deltaUSD / baseline * 100
+		d.HasCommittedBasis = true
 	}
 	return d
+}
+
+// autoscaledDelta builds a change that adds burst headroom without changing committed
+// spend — the shape of adding an autoscaler to an existing workload.
+func autoscaledDelta(floor, ceiling, baseline float64) cost.Delta {
+	return cost.Delta{
+		BaselineMonthlyUSD:  baseline,
+		ProjectedMonthlyUSD: ceiling,
+		DeltaMonthlyUSD:     ceiling - baseline,
+
+		CommittedBaselineUSD:  baseline,
+		CommittedProjectedUSD: floor,
+		CommittedDeltaUSD:     floor - baseline,
+		HasCommittedBasis:     baseline > 0,
+
+		Workloads: []cost.WorkloadDelta{{
+			Ref:        "Deployment/demo/demo-worker",
+			Change:     "modified",
+			BeforeUSD:  baseline,
+			AfterUSD:   ceiling,
+			DeltaUSD:   ceiling - baseline,
+			Autoscaled: true,
+			FloorUSD:   floor,
+		}},
+	}
 }
 
 // TestAbsoluteThresholdBoundary is the LLD §2.6 boundary case. The comparison is strictly
@@ -175,5 +214,41 @@ func TestSeverityOverrideIsApplied(t *testing.T) {
 	if msg := v.Policy.Warnings[0].Message; msg == "image not pinned" {
 		t.Error("the severity override is not visible in the message; a rule could be " +
 			"disabled in config while still appearing to be enforced")
+	}
+}
+
+// --- elastic headroom ------------------------------------------------------
+
+// TestAddingAutoscalingIsJudgedAsBurstNotCommitment is the case that motivated splitting
+// the budgets. Adding a ScaledObject raises the ceiling sixfold while committing to
+// nothing extra; under a single budget the committed-spend percentage cap would block
+// every autoscaler ever proposed.
+func TestAddingAutoscalingIsJudgedAsBurstNotCommitment(t *testing.T) {
+	// Idles at $11.73 as before, can burst to $70.36. Committed delta is zero.
+	v := verdict.Aggregate(cfg(nil), autoscaledDelta(11.73, 70.36, 11.73), nil, policy.Result{})
+	if v.Decision != verdict.Pass {
+		t.Errorf("adding autoscaling was blocked despite committing no additional spend: %v", v.Reasons)
+	}
+	if !v.Cost.Warned {
+		t.Error("burst capacity of $58.63 passed the $40 advisory level without a warning")
+	}
+}
+
+func TestExcessiveBurstCapacityIsBlocked(t *testing.T) {
+	// Same floor, but a ceiling that authorises far more than the $75 burst budget.
+	v := verdict.Aggregate(cfg(nil), autoscaledDelta(11.73, 200.00, 11.73), nil, policy.Result{})
+	if v.Decision != verdict.Fail {
+		t.Errorf("a change authorising $188 of burst capacity passed: %v", v.Reasons)
+	}
+}
+
+// TestBurstRatioCatchesCheapWorkloadsWithHugeMultipliers covers what the absolute cap
+// misses: the dollar figure is small, so only the ratio reveals that peak spend has
+// become a large multiple of steady state.
+func TestBurstRatioCatchesCheapWorkloadsWithHugeMultipliers(t *testing.T) {
+	// $2 idle, $60 at full scale — only $58 of burst, under the $75 cap, but a 30× ratio.
+	v := verdict.Aggregate(cfg(nil), autoscaledDelta(2.00, 60.00, 2.00), nil, policy.Result{})
+	if v.Decision != verdict.Fail {
+		t.Errorf("a 30x burst ratio passed because the absolute figure looked small: %v", v.Reasons)
 	}
 }

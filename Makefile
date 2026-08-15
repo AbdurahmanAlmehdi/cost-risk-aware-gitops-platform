@@ -139,6 +139,10 @@ cost: gate-build ## Price the manifests as they stand, with no comparison
 reconcile: gate-build ## Check M2's pre-merge estimate against M4's live measurement
 	@bash tools/reconcile.sh
 
+.PHONY: load-test
+load-test: ## Drive demand and prove the worker tier scales and drains (M5)
+	@bash tools/load-test.sh
+
 .PHONY: grafana-password
 grafana-password: ## Print the Grafana admin password
 	@kubectl -n observability get secret observability-grafana \

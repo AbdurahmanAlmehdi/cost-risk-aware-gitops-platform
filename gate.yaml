@@ -42,6 +42,24 @@ spec:
     # A PR that only ever reduces cost is never blocked by the cost sub-gate.
     allowUnboundedDecrease: true
 
+    # Elastic headroom, judged separately from committed spend.
+    #
+    # The thresholds above apply to the floor — what a change costs with nothing
+    # happening. These apply to the ceiling an autoscaler authorises. They have to be
+    # separate budgets: a 20% cap tight enough to catch a careless replica bump would make
+    # any autoscaler unadoptable, since a large idle-to-peak ratio is the entire point of
+    # elasticity. Treating burst as free would be the opposite mistake.
+    autoscaling:
+      # How much additional burst capacity one change may authorise, per month at full
+      # scale.
+      maxCeilingDeltaUSD: 75.00
+      warnCeilingDeltaUSD: 40.00
+      # How many times its committed cost a single workload may burst to. This catches
+      # the shape the absolute cap misses: a cheap workload with an enormous multiplier,
+      # where every individual change looks small in dollars while peak spend quietly
+      # becomes a large multiple of steady state.
+      maxBurstRatio: 8.0
+
     # A DaemonSet's replica count is the size of the cluster, which the gate cannot know
     # at merge time — it is evaluating Git, not a live cluster, and deliberately holds no
     # cluster credentials (LLD §9.4). This is the node count it assumes instead. Stated

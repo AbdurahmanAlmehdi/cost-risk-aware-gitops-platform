@@ -1,0 +1,66 @@
+# M5 — the event-driven autoscaling controller.
+#
+# KEDA rather than a bare HorizontalPodAutoscaler because the demand signal this platform
+# scales on is queue depth, and an HPA can only read CPU and memory. CPU is a *proxy* for
+# demand — it rises after the work arrives and the pods are already saturated. Queue depth
+# is the demand itself, visible before latency degrades.
+#
+# The HPA is not discarded: KEDA creates and drives one underneath, so the scaling
+# mechanism remains the standard Kubernetes one, with KEDA supplying a better input.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keda
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kedacore.github.io/charts
+    chart: keda
+    targetRevision: 2.20.2
+    helm:
+      valuesObject:
+        # The controller is platform infrastructure, so it runs on the platform node —
+        # deliberately not on the node whose workloads it is scaling. An autoscaler
+        # evicted by the scale-up it just performed is a genuinely confusing failure.
+        nodeSelector:
+          workload: platform
+        tolerations:
+          - key: workload
+            operator: Equal
+            value: platform
+            effect: NoSchedule
+        resources:
+          operator:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          metricServer:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+        prometheus:
+          metricServer:
+            enabled: true
+          operator:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keda
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # KEDA's CRDs are large enough that client-side apply exceeds the annotation size
+      # limit it relies on.
+      - ServerSideApply=true

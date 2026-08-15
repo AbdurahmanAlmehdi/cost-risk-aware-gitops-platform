@@ -69,15 +69,28 @@ func writeCost(b *strings.Builder, v verdict.Verdict) {
 	}
 	fmt.Fprintf(b, "### Cost — %s\n\n", status)
 
-	fmt.Fprintf(b, "| | Monthly (%s) |\n|---|---:|\n", v.Currency)
-	fmt.Fprintf(b, "| Baseline | %s |\n", money(d.BaselineMonthlyUSD))
-	fmt.Fprintf(b, "| Projected | %s |\n", money(d.ProjectedMonthlyUSD))
-	if d.HasPercentBasis {
-		fmt.Fprintf(b, "| **Change** | **%s (%+.1f%%)** |\n", signedMoney(d.DeltaMonthlyUSD), d.PercentIncrease)
-	} else {
-		fmt.Fprintf(b, "| **Change** | **%s** (no baseline — new workload) |\n", signedMoney(d.DeltaMonthlyUSD))
+	// Committed and authorised are shown side by side because they are different
+	// promises. Committed is what the change costs with nothing happening; authorised is
+	// the ceiling it permits under load. Collapsing them into one figure would either
+	// make every autoscaler look ruinous or make unbounded burst look free.
+	fmt.Fprintf(b, "| | Committed (%s/mo) | Authorised ceiling (%s/mo) |\n|---|---:|---:|\n",
+		v.Currency, v.Currency)
+	fmt.Fprintf(b, "| Baseline | %s | %s |\n",
+		money(d.CommittedBaselineUSD), money(d.BaselineMonthlyUSD))
+	fmt.Fprintf(b, "| Projected | %s | %s |\n",
+		money(d.CommittedProjectedUSD), money(d.ProjectedMonthlyUSD))
+
+	committedChange := signedMoney(d.CommittedDeltaUSD)
+	if d.HasCommittedBasis {
+		committedChange = fmt.Sprintf("%s (%+.1f%%)", committedChange, d.CommittedPercent)
 	}
+	fmt.Fprintf(b, "| **Change** | **%s** | **%s** |\n", committedChange, signedMoney(d.DeltaMonthlyUSD))
 	b.WriteString("\n")
+
+	if burst := d.DeltaMonthlyUSD - d.CommittedDeltaUSD; burst > 0 {
+		fmt.Fprintf(b, "This change adds **%s/month of burst capacity** — spend it authorises "+
+			"under load but does not commit to.\n\n", money(burst))
+	}
 
 	// Only workloads whose cost actually moved are listed. An unchanged workload that
 	// happens to sit in a touched directory is noise in a review.
@@ -90,8 +103,16 @@ func writeCost(b *strings.Builder, v verdict.Verdict) {
 		if w.BeforeReps == w.AfterReps {
 			replicas = fmt.Sprintf("%d", w.AfterReps)
 		}
+		after := money(w.AfterUSD)
+		if w.Autoscaled {
+			// The ceiling is what the change authorises and therefore what is priced,
+			// but showing it alone would read as the running cost. The range is the
+			// honest presentation.
+			replicas = fmt.Sprintf("%d–%d (auto)", w.MinReplicas, w.MaxReplicas)
+			after = fmt.Sprintf("%s–**%s**", money(w.FloorUSD), money(w.AfterUSD))
+		}
 		changed = append(changed, fmt.Sprintf("| `%s` | %s | %s | %s | %s | **%s** |",
-			w.Ref, w.Change, replicas, money(w.BeforeUSD), money(w.AfterUSD), signedMoney(w.DeltaUSD)))
+			w.Ref, w.Change, replicas, money(w.BeforeUSD), after, signedMoney(w.DeltaUSD)))
 	}
 	if len(changed) > 0 {
 		b.WriteString("| Workload | Change | Replicas | Before | After | Delta |\n")

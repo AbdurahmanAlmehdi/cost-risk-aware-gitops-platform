@@ -291,3 +291,127 @@ spec:
 	}
 }
 
+
+// --- autoscaling awareness -------------------------------------------------
+//
+// An autoscaler is the largest cost decision a repository contains: it authorises a
+// ceiling. It also touches no `replicas:` field, so a gate that prices the Deployment
+// literally reports the cost of the quietest possible moment and calls it the cost of
+// the change.
+
+const autoscaledWorker = `
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: demo-worker, namespace: demo}
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: worker
+          resources: {requests: {cpu: "1", memory: 0}}
+`
+
+func TestScaledObjectPricesAtTheCeiling(t *testing.T) {
+	scaledObject := `
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: {name: demo-worker, namespace: demo}
+spec:
+  scaleTargetRef:
+    name: demo-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+`
+	est, err := cost.New(table(), 3).Estimate([]cost.Object{
+		decode(t, autoscaledWorker), decode(t, scaledObject),
+	})
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+
+	// 1 core x $0.10 x 100 hours = $10/month per replica. Ten replicas authorised.
+	assertMoney(t, est.MonthlyUSD, 100.00)
+
+	w := est.Workloads[0]
+	if !w.Autoscaled || w.MinReplicas != 1 || w.MaxReplicas != 10 {
+		t.Fatalf("autoscale bounds not recorded: %+v", w)
+	}
+	// The floor still has to be reported, or the figure reads as the running cost.
+	assertMoney(t, w.FloorMonthlyUSD, 10.00)
+	if len(w.Flags) == 0 {
+		t.Error("priced at the ceiling without saying so; the reader would take $100 for the running cost")
+	}
+}
+
+// TestOmittedMaxReplicaCountUsesKedaDefault is the dangerous case. Leaving the field out
+// is a one-line manifest that authorises a hundredfold increase, and nothing in the diff
+// looks like a cost change.
+func TestOmittedMaxReplicaCountUsesKedaDefault(t *testing.T) {
+	scaledObject := `
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: {name: demo-worker, namespace: demo}
+spec:
+  scaleTargetRef:
+    name: demo-worker
+`
+	est, err := cost.New(table(), 3).Estimate([]cost.Object{
+		decode(t, autoscaledWorker), decode(t, scaledObject),
+	})
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	// KEDA's default maximum is 100 replicas: $10/replica x 100 = $1000/month.
+	assertMoney(t, est.MonthlyUSD, 1000.00)
+	if est.Workloads[0].MaxReplicas != 100 {
+		t.Errorf("max replicas = %d, want KEDA's default of 100", est.Workloads[0].MaxReplicas)
+	}
+}
+
+func TestHorizontalPodAutoscalerPricesAtTheCeiling(t *testing.T) {
+	hpa := `
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: demo-worker, namespace: demo}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: demo-worker
+  minReplicas: 2
+  maxReplicas: 5
+`
+	est, err := cost.New(table(), 3).Estimate([]cost.Object{
+		decode(t, autoscaledWorker), decode(t, hpa),
+	})
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	assertMoney(t, est.MonthlyUSD, 50.00)
+	assertMoney(t, est.Workloads[0].FloorMonthlyUSD, 20.00)
+}
+
+// TestAutoscalerTargetingAnotherWorkloadIsIgnored guards against bounds bleeding across
+// workloads — an autoscaler on the API must not reprice the worker.
+func TestAutoscalerTargetingAnotherWorkloadIsIgnored(t *testing.T) {
+	other := `
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata: {name: demo-api, namespace: demo}
+spec:
+  scaleTargetRef:
+    name: demo-api
+  maxReplicaCount: 50
+`
+	est, err := cost.New(table(), 3).Estimate([]cost.Object{
+		decode(t, autoscaledWorker), decode(t, other),
+	})
+	if err != nil {
+		t.Fatalf("estimate: %v", err)
+	}
+	assertMoney(t, est.MonthlyUSD, 10.00)
+	if est.Workloads[0].Autoscaled {
+		t.Error("an autoscaler targeting a different workload was applied to this one")
+	}
+}

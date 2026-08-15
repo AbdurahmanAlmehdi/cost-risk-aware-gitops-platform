@@ -380,6 +380,10 @@ func ratesChanged(base, head *pricing.Table) bool {
 func mergeEstimates(a, b cost.Estimate) cost.Estimate {
 	a.Workloads = append(a.Workloads, b.Workloads...)
 	a.MonthlyUSD += b.MonthlyUSD
+	// Committed spend accumulates alongside the ceiling. Omitting it here reports every
+	// multi-root change as committing to nothing, which would disable the committed
+	// budget entirely while the report still displayed a committed column.
+	a.CommittedMonthlyUSD += b.CommittedMonthlyUSD
 	a.Flags = append(a.Flags, b.Flags...)
 	a.Total.CPUCores += b.Total.CPUCores
 	a.Total.MemoryGiB += b.Total.MemoryGiB
