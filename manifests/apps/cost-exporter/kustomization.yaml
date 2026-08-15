@@ -2,9 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: observability
 
+# Every file has to be listed here. kustomize ignores anything it is not told about,
+# silently and without warning — a manifest can be committed, reviewed, merged and
+# deployed while doing absolutely nothing, because nothing ever reads it.
 resources:
   - deployment.yaml
   - podmonitor.yaml
+  - dashboard.yaml
 
 # The pricing table is delivered to the cluster as a ConfigMap generated from the very
 # same file M2 reads to price pull requests. It lives inside this kustomize root because
