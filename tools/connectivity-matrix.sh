@@ -25,34 +25,44 @@ trap cleanup EXIT
 echo "==> connectivity matrix for namespace '$NS'"
 echo
 
-# probe_from runs a connection attempt from inside an existing workload's pod, so the
-# source identity is the real one the policy selects on. Probing from a scratch pod would
-# test a different source and prove nothing about the actual workloads.
-probe_from() {
-  local selector=$1 target=$2 port=$3
-  local pod
-  pod=$(kubectl -n "$NS" get pod -l "$selector" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-  if [ -z "$pod" ]; then
-    echo "SKIP  no pod matching ${selector}"
-    return 2
-  fi
+# probe_as runs a connection attempt from a throwaway pod carrying the same labels as a
+# real workload.
+#
+# It cannot exec into the real pods: the application images are distroless, with no shell
+# and no netcat, which is a deliberate hardening choice that also makes them impossible to
+# probe from the inside. Kubernetes NetworkPolicy selects on labels, so a pod wearing the
+# workload's labels is subject to exactly the same rules — this tests the policy as
+# written, which is what the matrix is for. That the real pods can talk is proven
+# separately, by the application actually draining its queue.
+probe_as() {
+  local identity=$1 labels=$2 target=$3 port=$4
+  local probe="probe-${identity}"
+
+  kubectl -n "$NS" delete pod "$probe" --ignore-not-found --wait=true >/dev/null 2>&1
+  kubectl -n "$NS" run "$probe" --image="$IMAGE" --labels="$labels" \
+    --command -- sleep 300 >/dev/null 2>&1 || return 2
+  kubectl -n "$NS" wait --for=condition=Ready "pod/$probe" --timeout=120s >/dev/null 2>&1 || return 2
+
   # A blocked connection under default-deny is dropped, not refused, so it manifests as a
   # timeout rather than an error. The short deadline is what makes "denied" fast and
   # unambiguous instead of a 30-second hang.
-  kubectl -n "$NS" exec "$pod" -c "${4:-}" -- \
-    timeout "$TIMEOUT" nc -z -w "$TIMEOUT" "$target" "$port" >/dev/null 2>&1
+  local rc=0
+  kubectl -n "$NS" exec "$probe" -- \
+    timeout "$TIMEOUT" nc -z -w "$TIMEOUT" "$target" "$port" >/dev/null 2>&1 || rc=1
+  kubectl -n "$NS" delete pod "$probe" --wait=false >/dev/null 2>&1
+  return $rc
 }
 
 check() {
-  local description=$1 expected=$2 selector=$3 target=$4 port=$5 container=${6:-}
-  local actual result
+  local description=$1 expected=$2 identity=$3 labels=$4 target=$5 port=$6
+  local actual result rc=0
 
-  if probe_from "$selector" "$target" "$port" "$container"; then
-    actual=allow
-  else
-    [ $? -eq 2 ] && { printf "  %-56s SKIPPED\n" "$description"; return; }
-    actual=deny
+  probe_as "$identity" "$labels" "$target" "$port" || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    printf "  %-56s SKIPPED (probe pod would not start)\n" "$description"
+    return
   fi
+  [ "$rc" -eq 0 ] && actual=allow || actual=deny
 
   if [ "$actual" = "$expected" ]; then
     result="ok"; pass=$((pass + 1))
@@ -64,17 +74,17 @@ check() {
 }
 
 echo "-- paths that MUST work (the application has to function) --"
-check "demo-api  -> redis:6379"        allow "app.kubernetes.io/name=demo-api"    redis 6379 api
-check "demo-worker -> redis:6379"      allow "app.kubernetes.io/name=demo-worker" redis 6379 worker
+check "demo-api  -> redis:6379"   allow api    "app.kubernetes.io/name=demo-api"    redis 6379
+check "demo-worker -> redis:6379" allow worker "app.kubernetes.io/name=demo-worker" redis 6379
 
 echo
 echo "-- paths that MUST be blocked (isolation is real) --"
 # The producer has no business reaching the consumer: they communicate exclusively through
 # the queue. If this succeeds, the allow-list is wider than the architecture.
-check "demo-api  -> demo-worker:8080"  deny  "app.kubernetes.io/name=demo-api"    demo-worker 8080 api
+check "demo-api  -> demo-worker:8080" deny api "app.kubernetes.io/name=demo-api" demo-worker 8080
 # Nothing should be able to reach the API's HTTP port from inside the namespace — external
 # traffic arrives through the NodePort from the node network, not from a pod.
-check "demo-worker -> demo-api:8080"   deny  "app.kubernetes.io/name=demo-worker" demo-api 8080 worker
+check "demo-worker -> demo-api:8080" deny worker "app.kubernetes.io/name=demo-worker" demo-api 8080
 
 echo
 echo "-- a pod with no allow-list entry is denied by default --"
@@ -114,10 +124,15 @@ fi
 # Prometheus scrapes the demo pods from another namespace. Losing this does not break the
 # application, it breaks the evidence — cost and latency go flat, which reads as a workload
 # that costs nothing rather than as a blocked connection.
-UP=$(kubectl -n observability exec -c prometheus \
-  prometheus-observability-kube-prometh-prometheus-0 -- \
-  wget -qO- 'http://localhost:9090/api/v1/query?query=up{namespace="demo"}' 2>/dev/null \
+# Read through a port-forward rather than exec'ing a shell tool into the Prometheus
+# container — the same distroless problem, and an exec failure would otherwise be
+# indistinguishable from a blocked scrape.
+kubectl -n observability port-forward svc/observability-kube-prometh-prometheus 9098:9090 >/dev/null 2>&1 &
+PROM_PF=$!
+for _ in $(seq 1 25); do curl -sf http://localhost:9098/-/ready >/dev/null 2>&1 && break; sleep 2; done
+UP=$(curl -sfG http://localhost:9098/api/v1/query --data-urlencode 'query=up{namespace="demo"}' 2>/dev/null \
   | grep -o '"value"' | wc -l | tr -d ' ' || echo 0)
+kill $PROM_PF 2>/dev/null || true
 if [ "${UP:-0}" -gt 0 ]; then
   printf "  %-56s %s\n" "prometheus -> demo pods (scrape succeeding)" "ok"
   pass=$((pass + 1))
