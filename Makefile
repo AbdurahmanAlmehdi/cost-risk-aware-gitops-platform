@@ -66,6 +66,21 @@ cluster-status: ## Show node and system-pod state
 		| grep -v Completed || echo "all pods Running or Completed"
 
 # -----------------------------------------------------------------------------
+# Managed cluster (DigitalOcean) — the demonstration environment
+# -----------------------------------------------------------------------------
+.PHONY: doks-up
+doks-up: ## Provision the DOKS cluster and verify its CNI enforces NetworkPolicy
+	@bash tools/doks-up.sh
+
+.PHONY: doks-down
+doks-down: ## Destroy the DOKS cluster (it bills by the hour)
+	doctl kubernetes cluster delete $${CLUSTER:-gitops-platform}
+
+.PHONY: doks-forward
+doks-forward: ## Forward Grafana, ArgoCD and the demo API to their usual local ports
+	@bash tools/port-forward.sh
+
+# -----------------------------------------------------------------------------
 # M3 — GitOps delivery
 # -----------------------------------------------------------------------------
 ARGOCD_CHART_VERSION := 10.3.3
@@ -159,6 +174,17 @@ grafana-password: ## Print the Grafana admin password
 bootstrap: cluster-up cni ## Bring up a fully working empty platform
 	@echo
 	@echo "cluster is ready. next: make argocd"
+
+.PHONY: verify
+verify: ## Run every proof the platform makes about itself, in order
+	# Each of these fails loudly rather than reporting a qualified success. Together they
+	# are the demonstration: isolation is enforced, Git governs the cluster, the pre-merge
+	# estimate matches live measurement, and demand actually drives replicas.
+	@bash tools/verify-cni.sh
+	@bash tools/drift-test.sh
+	@$(MAKE) --no-print-directory reconcile
+	@bash tools/connectivity-matrix.sh
+	@bash tools/load-test.sh
 
 .PHONY: test
 test: gate-test ## Run every test in the repository
