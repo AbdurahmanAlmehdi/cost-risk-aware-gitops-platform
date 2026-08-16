@@ -25,6 +25,18 @@ configs:
     server.insecure: true
 
   cm:
+    # How often each Application is re-compared against Git, when no webhook has fired.
+    #
+    # Raised from the 180s default once the platform reached nine Applications. Each
+    # reconciliation lists and diffs every resource an Application owns, and that load
+    # lands on the API server: at 180s the controller alone drove the apiserver to over
+    # two cores on this cluster and started timing out requests for everything else.
+    #
+    # The cost of the longer interval is bounded and small — a merge takes at most five
+    # minutes to appear rather than three — and it only applies when no webhook is
+    # configured, which is the case here because the cluster is not reachable from GitHub.
+    timeout.reconciliation: 300s
+
     # Ignore the replica count on Deployments that a ScaledObject owns.
     #
     # Without this, M3 and M5 fight: KEDA scales demo-worker to 6, ArgoCD sees live state
@@ -52,17 +64,33 @@ controller:
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      # Measured at ~547Mi with the current application set. The previous 256Mi request
+      # meant the scheduler reserved less than half of what this actually holds, so the
+      # node was overcommitted by exactly the amount nobody had accounted for — the same
+      # requested-versus-actual gap M4 exists to surface, found in the platform itself.
+      memory: 576Mi
     limits:
-      memory: 768Mi
+      memory: 1Gi
 
 repoServer:
   resources:
     requests:
-      cpu: 50m
-      memory: 128Mi
+      # Raised from 50m after the repo-server crash-looped 33 times.
+      #
+      # It was not out of memory — it was failing its liveness probe. Rendering Helm
+      # charts is CPU-bound, and once the platform started delivering kube-prometheus-
+      # stack, KEDA and metrics-server from charts rather than plain manifests, 50m of
+      # guaranteed CPU was no longer enough to answer /healthz before the probe timed
+      # out. The kubelet then killed it, which dropped every Application to Unknown
+      # because nothing could render the desired state.
+      #
+      # The lesson is about requests, not about ArgoCD: the workload's profile changed
+      # when its responsibilities did, and the reservation set for the old profile
+      # silently became wrong.
+      cpu: 250m
+      memory: 256Mi
     limits:
-      memory: 512Mi
+      memory: 1Gi
 
 redis:
   resources:
