@@ -1,0 +1,73 @@
+# M6 — the default-deny baseline.
+#
+# Kubernetes' default is that every pod can reach every other pod, in every namespace.
+# That is convenient during development and indefensible in production: the first
+# compromised container — any container, including one nobody remembers deploying — gets a
+# foothold from which the entire cluster is reachable. Security people call the second
+# half lateral movement, and it is usually the expensive part of a breach, not the initial
+# entry.
+#
+# These two policies invert the default for the demo namespace. Nothing may talk to
+# anything, and every permitted path is then declared explicitly beside the workload that
+# needs it. A workload with no matching rule fails closed — it cannot communicate — which
+# is the safe direction to fail (LLD §6.4).
+#
+# This only works because the cluster runs Calico. kind's default CNI accepts these
+# objects and enforces nothing, which would leave a security baseline that exists purely
+# as documentation. `make verify-cni` proves enforcement rather than assuming it.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: demo
+  labels:
+    app.kubernetes.io/part-of: demo
+    gitops-platform.io/module: m6
+spec:
+  # An empty podSelector selects every pod in the namespace. That is exactly right here —
+  # and exactly wrong for an allow rule, which is why GATE-018 warns about it elsewhere.
+  podSelector: {}
+  # Both directions. Denying only ingress would still let a compromised pod reach out to
+  # anything it liked, which is how data leaves rather than how attackers get in.
+  policyTypes:
+    - Ingress
+    - Egress
+  # No rules at all: deny everything. Every allowance is declared separately, next to the
+  # workload that depends on it, so removing a workload removes its permissions with it.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: demo
+  labels:
+    app.kubernetes.io/part-of: demo
+    gitops-platform.io/module: m6
+spec:
+  # The one allowance that is genuinely namespace-wide.
+  #
+  # Under a default-deny egress policy, pods cannot reach CoreDNS, so every service name
+  # stops resolving. The failure does not look like a network policy problem — it looks
+  # like Redis is down, because that is the error the application reports. This rule
+  # exists first, and separately, so that it is never the thing someone forgets while
+  # debugging something else.
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        # TCP as well: DNS falls back to it for responses too large for a UDP datagram,
+        # and a UDP-only rule produces intermittent resolution failures that are
+        # miserable to diagnose.
+        - protocol: TCP
+          port: 53

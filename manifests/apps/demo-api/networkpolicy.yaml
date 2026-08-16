@@ -1,0 +1,58 @@
+# The producer tier's permitted paths.
+#
+# This is the only workload in the namespace deliberately reachable from outside the
+# cluster — it is the front door, and the load generator drives it through a NodePort.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-api-allow
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/part-of: demo
+    gitops-platform.io/module: m6
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: demo-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # External traffic arriving through the NodePort.
+    #
+    # It does not arrive with the client's address. kube-proxy source-NATs NodePort
+    # traffic to the receiving node, so as far as policy is concerned it originates from
+    # the node network — which is why this is an ipBlock and not a podSelector.
+    #
+    # Scoped to the cluster's own node subnet rather than 0.0.0.0/0. The platform's own
+    # GATE-017 blocks an open CIDR, and it is right to: "reachable from the internet"
+    # should never be something a pod-level allow-list can quietly grant.
+    - from:
+        - ipBlock:
+            cidr: 172.31.0.0/16
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # Prometheus scrapes the pod directly through a PodMonitor, so the connection comes
+    # from the observability namespace. Without this the metrics simply stop, and the
+    # dashboards go flat in a way that looks like the workload costing nothing rather
+    # than like a blocked connection.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    # The queue, and nothing else. DNS is granted namespace-wide by the baseline.
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379

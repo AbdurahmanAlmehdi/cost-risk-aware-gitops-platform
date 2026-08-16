@@ -50,6 +50,10 @@ cni: ## Install Calico and wait for nodes to become Ready
 verify-cni: ## Assert the CNI actually enforces NetworkPolicy (not just accepts it)
 	@bash tools/verify-cni.sh
 
+.PHONY: connectivity-matrix
+connectivity-matrix: ## Assert the M6 allow/deny matrix pair by pair
+	@bash tools/connectivity-matrix.sh
+
 .PHONY: cluster-down
 cluster-down: ## Delete the kind cluster
 	kind delete cluster --name $(CLUSTER_NAME)

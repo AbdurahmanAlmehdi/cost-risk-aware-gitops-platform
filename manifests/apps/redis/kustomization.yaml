@@ -4,3 +4,17 @@ namespace: demo
 resources:
   - deployment.yaml
   - service.yaml
+  - networkpolicy.yaml
+
+# Pinned to the multi-arch index digest for redis:7.4.2-alpine.
+#
+# This violation predated GATE-014's promotion to blocking and only surfaced now, when a
+# NetworkPolicy brought this directory into the gate's scope. That is inherent to a
+# diff-scoped gate: it evaluates what a change touches, so an untouched manifest can carry
+# a violation until someone next edits its directory. Worth knowing rather than being
+# surprised by — the alternative, re-evaluating every manifest on every pull request,
+# would report findings nobody in that review can act on.
+images:
+  - name: redis
+    newName: redis
+    digest: sha256:02419de7eddf55aa5bcf49efb74e88fa8d931b4d77c07eff8a6b2144472b6952

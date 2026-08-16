@@ -6,6 +6,7 @@ resources:
   - deployment.yaml
   - podmonitor.yaml
   - scaledobject.yaml
+  - networkpolicy.yaml
 
 images:
   - name: demo-app
