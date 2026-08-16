@@ -1,0 +1,41 @@
+# The consumer tier's permitted paths.
+#
+# The worker is the most restricted component in the namespace, and appropriately so: it
+# pulls its own work, serves nothing, and needs no inbound traffic from anywhere except
+# the monitoring system. Nothing in the cluster can initiate a connection to it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-worker-allow
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-worker
+    app.kubernetes.io/part-of: demo
+    gitops-platform.io/module: m6
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: demo-worker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Metrics only. app_job_wait_seconds is the series that proves scaling actually helped,
+    # so losing this scrape would remove the evidence for M5's central claim while leaving
+    # the autoscaling itself working — a silent gap in the argument rather than an outage.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379

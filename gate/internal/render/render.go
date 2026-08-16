@@ -194,6 +194,13 @@ func AllRoots(treeDir, manifestsPath string) ([]string, error) {
 			// descending would render the same objects twice and double their cost.
 			return filepath.SkipDir
 		}
+		// A directory of plain YAML is a root too. Roots() already falls back to this for
+		// changed files, and the two must agree: if they did not, a workload could be
+		// priced when its own file changed but ignored during a full re-pricing, so the
+		// same manifest would cost something in one report and nothing in another.
+		if containsYAML(path) {
+			roots = append(roots, path)
+		}
 		return nil
 	})
 	if err != nil {
@@ -202,6 +209,23 @@ func AllRoots(treeDir, manifestsPath string) ([]string, error) {
 
 	sort.Strings(roots)
 	return roots, nil
+}
+
+// containsYAML reports whether a directory holds manifests directly.
+func containsYAML(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(e.Name(), ".yaml") || strings.HasSuffix(e.Name(), ".yml") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasKustomization(dir string) bool {
