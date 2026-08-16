@@ -72,7 +72,7 @@ Full design: [`docs/LLD.md`](docs/LLD.md).
 | 2 | **M2 Pre-Merge Gate** | ✅ Cost + policy sub-gates, 18 rules, 20 tests, live on PRs |
 | 3 | M3 GitOps Delivery | ✅ ArgoCD app-of-apps; drift reverted in ~5s, merge→cluster in 41s |
 | 4 | M4 / M7 | ✅ Cost exporter, Prometheus, Grafana; prediction reconciles with measurement |
-| 5 | M5 Elasticity | ⬜ KEDA on queue depth, HPA fallback |
+| 5 | M5 Elasticity | ✅ KEDA on queue depth; 1→6 in 15s, backlog drained, cost tracked the curve |
 | 6 | M6 Security Baseline | ⬜ Default-deny, allow-lists, connectivity matrix |
 | 7 | M8 Cost Intelligence | ⬜ Anomaly baseline, PR explainer |
 
@@ -142,6 +142,49 @@ observability/cost-exporter                     1.35          1.35        ok
 Workloads reported as `not in Git` are a deliberate, honest gap: ArgoCD and the monitoring
 stack are delivered from Helm charts, and the cost sub-gate can only price what it renders
 from the repository.
+
+Drive demand and watch the platform respond:
+
+```bash
+make load-test
+```
+
+It enqueues 600 jobs, then asserts all four parts of the elasticity claim separately —
+demand rises, replicas follow, **the backlog actually drains**, and bounds are never
+breached. The third is the one that matters: replica count alone proves the autoscaler
+acted, not that the action worked.
+
+A recorded run, with M4 measuring the cost of the same event:
+
+```
+t+ 0s   1 replica    queue 599     $11.73/month
+t+15s   5 replicas   queue 547     $58.63/month
+t+30s   6 replicas   queue 292     $70.36/month
+t+45s   6 replicas   queue   0     backlog cleared
+        1 replica    queue   0     $11.73/month
+```
+
+M2 priced this change's ceiling at **$70.36/month** before it merged. Under load, M4
+measured **$70.36**. That is the whole argument of the project in one line.
+
+### Cost is autoscaling-aware
+
+A `ScaledObject` authorises a spending ceiling while touching no `replicas:` field, so a
+gate that prices the Deployment literally reports the cost of the quietest possible moment.
+Worse, omitting `maxReplicaCount` hands the decision to KEDA's default of **100 replicas**
+— a one-line diff that looks like nothing and authorises roughly $1,170/month here.
+
+So the gate prices autoscaled workloads at their ceiling, and judges two budgets rather
+than one:
+
+- **Committed spend** — the floor, what the change costs with nothing happening. Judged by
+  the ordinary per-change thresholds.
+- **Authorised burst** — the ceiling an autoscaler permits under load. Judged by its own
+  budget, plus a ratio cap.
+
+They have to be separate. A percentage cap tight enough to catch a careless replica bump
+would block every autoscaler ever proposed, since a large idle-to-peak ratio is the entire
+point of elasticity. Treating burst as free would be the opposite mistake.
 
 ## How the gate works
 
