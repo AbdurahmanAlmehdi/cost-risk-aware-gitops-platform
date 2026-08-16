@@ -35,7 +35,12 @@ configs:
     # The cost of the longer interval is bounded and small — a merge takes at most five
     # minutes to appear rather than three — and it only applies when no webhook is
     # configured, which is the case here because the cluster is not reachable from GitHub.
-    timeout.reconciliation: 300s
+    # Raised again at nine Applications, three of them Helm-sourced. ArgoCD re-renders
+    # every chart on every reconciliation, and kube-prometheus-stack is enormous — that
+    # render, repeated, is what saturates a laptop-sized cluster. Ten minutes is still far
+    # below the point where anyone notices, because a merge normally arrives via the
+    # controller's own change detection long before the next full sweep.
+    timeout.reconciliation: 600s
 
     # Ignore the replica count on Deployments that a ScaledObject owns.
     #

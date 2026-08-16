@@ -61,8 +61,12 @@ spec:
 
         prometheus:
           prometheusSpec:
-            retention: 24h
-            scrapeInterval: 30s
+            # Halved after the platform reached nine Applications on a laptop-sized
+            # cluster. Cost and scaling events are still resolved well within the window
+            # that makes the correlation legible, and the saving is real: every scrape is
+            # work for both Prometheus and every target it touches.
+            retention: 12h
+            scrapeInterval: 60s
             nodeSelector:
               workload: platform
             tolerations:
