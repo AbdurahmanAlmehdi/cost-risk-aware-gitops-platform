@@ -110,9 +110,7 @@ edge-secrets: ## Install the tunnel token and reviewer password into the cluster
 
 .PHONY: edge-routes
 edge-routes: ## Point the three hostnames at the tunnel (only after auth is verified)
-	@for h in gitops argocd grafana; do \
-		cloudflared tunnel route dns gitops-platform "$$h.abdurahman.ly" 2>&1 | tail -1; \
-	done
+	@bash tools/edge-routes.sh
 
 # -----------------------------------------------------------------------------
 # M3 — GitOps delivery
