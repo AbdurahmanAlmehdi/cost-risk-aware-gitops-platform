@@ -142,6 +142,28 @@ Consequence: reconciliation is on a `600s` interval with no webhook, so a merge 
 ten minutes to appear. Measured merge→cluster was 41s when the interval was shorter. Adding a
 webhook is possible once the tunnel exists, but pull-based delivery should stay the default.
 
+### KNOWN GAP: application code changes do not reach the cluster
+
+Two paths, and only one is closed:
+
+| Change | Result |
+|---|---|
+| A manifest (YAML) | merge → ArgoCD pulls → **deployed** |
+| Application code (Go) | merge → CI publishes a new image → **nothing deploys it** |
+
+The manifests pin a digest (`sha256:1b009011…`); CI publishes new digests but **never writes
+to the repository**. So a new image exists that nothing references. This is a direct
+consequence of digest pinning — Git is the authority, and nothing updates the digest in Git.
+
+**Do not fix this with ArgoCD Image Updater committing to `main`.** It would bypass M2, making
+the one change type that alters what actually runs the one change nobody reviews — which
+contradicts the platform's central claim.
+
+**Fix: CI opens a pull request that bumps the digest**, which then passes through the gate
+like any other change. Not yet implemented. It needs `contents: write` + `pull-requests: write`
+on a dedicated job, editing the `digest:` line in the relevant
+`manifests/apps/*/kustomization.yaml` (deliberately kept as a single line for exactly this).
+
 ## Security position
 
 Audited on the AWS host. Findings and their status:
@@ -181,7 +203,10 @@ revocation. **Cloudflare Access is the intended outer layer** and needs an API t
 6. **Re-run `make verify` on a healthy cluster.** Two M6 checks were never confirmed: the
    rewritten connectivity matrix, and KEDA's Redis path (its `connection refused` looked like
    Redis restarting, not a policy block — Redis had 8 restarts from cluster instability).
-7. **M8** (cost anomaly detection + PR explainer) is the last unstarted module.
+7. **Close the image-update loop** (see the known gap above): a CI job that opens a digest-bump
+   PR after publishing. Without it, application code changes never reach the cluster — which
+   will be confusing during a demonstration if someone edits Go and nothing happens.
+8. **M8** (cost anomaly detection + PR explainer) is the last unstarted module.
 
 ## Useful commands
 
