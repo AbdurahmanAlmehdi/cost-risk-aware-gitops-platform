@@ -105,7 +105,7 @@ doks-forward: ## Forward Grafana, ArgoCD and the demo API to their usual local p
 # Edge — tunnel and authenticated routing
 # -----------------------------------------------------------------------------
 .PHONY: edge-secrets
-edge-secrets: ## Install the tunnel token and reviewer password into the cluster
+edge-secrets: ## Install the tunnel token into the cluster
 	@bash tools/edge-secrets.sh
 
 .PHONY: edge-routes
