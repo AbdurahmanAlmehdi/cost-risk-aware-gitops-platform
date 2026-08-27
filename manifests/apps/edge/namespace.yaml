@@ -1,0 +1,14 @@
+# The edge namespace: the only place in the cluster that terminates traffic from outside.
+#
+# Kept separate from both the platform and the application so its permissions can be
+# reasoned about on their own. Nothing here talks to the Kubernetes API — Caddy and
+# cloudflared are pure network components, and neither is given a ServiceAccount token.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge
+  labels:
+    app.kubernetes.io/part-of: gitops-platform
+    gitops-platform.io/cost-center: platform
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

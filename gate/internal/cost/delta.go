@@ -14,6 +14,10 @@ type Delta struct {
 	// so explicitly rather than reporting a number that reads as precise.
 	PercentIncrease float64 `json:"percent_increase"`
 	HasPercentBasis bool    `json:"has_percent_basis"`
+	// EstateBaselineMonthlyUSD is the percentage denominator: every priced workload in
+	// the repository at the base commit, reported so the percentage can be checked
+	// rather than taken on trust.
+	EstateBaselineMonthlyUSD float64 `json:"estate_baseline_monthly_usd"`
 
 	// Committed* track the floor — spend the change commits to unconditionally. The
 	// fields above track the ceiling, which is spend it merely authorises. The gate
@@ -51,22 +55,40 @@ type WorkloadDelta struct {
 }
 
 // Compare produces the delta between a base and a head estimate.
-func Compare(base, head Estimate) Delta {
+//
+// estateBaseline is the cost of every priced workload in the repository at the base
+// commit, used as the percentage denominator. Pass 0 when it is unknown, and the
+// percentage is reported as having no basis rather than being computed against a
+// misleadingly narrow figure.
+func Compare(base, head Estimate, estateBaseline float64) Delta {
 	d := Delta{
 		BaselineMonthlyUSD:  base.MonthlyUSD,
 		ProjectedMonthlyUSD: head.MonthlyUSD,
 		DeltaMonthlyUSD:     head.MonthlyUSD - base.MonthlyUSD,
 	}
 
-	if base.MonthlyUSD > 0 {
-		d.PercentIncrease = (d.DeltaMonthlyUSD / base.MonthlyUSD) * 100
+	d.EstateBaselineMonthlyUSD = estateBaseline
+	if estateBaseline > 0 {
+		d.PercentIncrease = (d.DeltaMonthlyUSD / estateBaseline) * 100
 		d.HasPercentBasis = true
 	}
 
+	// The displayed baseline stays scoped to what this change touches — those two figures
+	// are "what these workloads cost before and after", and replacing the before-figure
+	// with an estate total would make the pair nonsense: a $79 baseline beside a $7
+	// projection reads as though costs had collapsed.
+	//
+	// The estate total is used only as the percentage denominator, below.
 	d.CommittedBaselineUSD = base.CommittedMonthlyUSD
 	d.CommittedProjectedUSD = head.CommittedMonthlyUSD
 	d.CommittedDeltaUSD = head.CommittedMonthlyUSD - base.CommittedMonthlyUSD
-	if base.CommittedMonthlyUSD > 0 {
+	// Percentage against the whole estate, which is what "how much did this raise our
+	// costs" means to whoever owns the budget. This is the figure the verdict gates on,
+	// so it is the one that has to be scope-independent.
+	if estateBaseline > 0 {
+		d.CommittedPercent = (d.CommittedDeltaUSD / estateBaseline) * 100
+		d.HasCommittedBasis = true
+	} else if base.CommittedMonthlyUSD > 0 {
 		d.CommittedPercent = (d.CommittedDeltaUSD / base.CommittedMonthlyUSD) * 100
 		d.HasCommittedBasis = true
 	}

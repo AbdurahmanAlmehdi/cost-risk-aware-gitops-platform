@@ -63,6 +63,20 @@ spec:
         - protocol: TCP
           port: 8080
 
+
+    # The demo dashboard, which drives load tests on the reviewer's behalf.
+    #
+    # This is why the job endpoint needs no public hostname of its own: the dashboard sits
+    # behind authentication and calls it from inside the cluster, so the one endpoint that
+    # can drive spending is never reachable from the internet at all.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: edge
+      ports:
+        - protocol: TCP
+          port: 8080
+
   egress:
     # The queue, and nothing else. DNS is granted namespace-wide by the baseline.
     - to:

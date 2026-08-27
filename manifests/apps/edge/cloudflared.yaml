@@ -1,0 +1,78 @@
+# The tunnel connector.
+#
+# It dials out to Cloudflare and holds the connection open, so the cluster needs no inbound
+# firewall rule at all — which is the entire security argument for this approach. Once it
+# is running, every ingress rule on the AWS security group can be deleted, and ports 6443
+# and 10250 stop being one careless edit away from the internet.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/component: tunnel
+    app.kubernetes.io/part-of: gitops-platform
+spec:
+  # Two replicas, because this is the single path in. Cloudflare load-balances across the
+  # connector's registered connections, so a restart during a demonstration does not drop
+  # the audience's session.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+        app.kubernetes.io/component: tunnel
+        app.kubernetes.io/part-of: gitops-platform
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
+          args:
+            - tunnel
+            - --no-autoupdate
+            # Metrics are bound so the connector's health is observable rather than
+            # inferred from whether the site happens to load.
+            - --metrics
+            - 0.0.0.0:2000
+            - --loglevel
+            - info
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-token
+                  key: token
+          ports:
+            - name: metrics
+              containerPort: 2000
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # No readiness probe: nothing routes to this pod. It is an outbound client, and
+          # is never in a Service's endpoint list.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

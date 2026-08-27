@@ -66,6 +66,27 @@ cluster-status: ## Show node and system-pod state
 		| grep -v Completed || echo "all pods Running or Completed"
 
 # -----------------------------------------------------------------------------
+# AWS review host — start it to review, stop it after
+# -----------------------------------------------------------------------------
+.PHONY: demo-host-start demo-host-stop demo-host-status demo-host-allow
+demo-host-start: ## Start the AWS review host (billing resumes)
+	@bash tools/demo-host.sh start
+
+demo-host-stop: ## Stop the AWS review host (billing stops; disk persists)
+	@bash tools/demo-host.sh stop
+
+demo-host-status: ## Show state, address and month-to-date spend against the cap
+	@bash tools/demo-host.sh status
+
+demo-host-allow: ## Grant a reviewer access: make demo-host-allow IP=1.2.3.4
+	@test -n "$(IP)" || { echo "usage: make demo-host-allow IP=<address>"; exit 1; }
+	@for p in 22 80 443 8080 3000; do \
+		aws ec2 authorize-security-group-ingress --group-id sg-08dab2da789bdaefc \
+			--ip-permissions "IpProtocol=tcp,FromPort=$$p,ToPort=$$p,IpRanges=[{CidrIp=$(IP)/32}]" \
+			>/dev/null 2>&1 && echo "  opened $$p to $(IP)" || echo "  $$p already open for $(IP)"; \
+	done
+
+# -----------------------------------------------------------------------------
 # Managed cluster (DigitalOcean) — the demonstration environment
 # -----------------------------------------------------------------------------
 .PHONY: doks-up
@@ -79,6 +100,19 @@ doks-down: ## Destroy the DOKS cluster (it bills by the hour)
 .PHONY: doks-forward
 doks-forward: ## Forward Grafana, ArgoCD and the demo API to their usual local ports
 	@bash tools/port-forward.sh
+
+# -----------------------------------------------------------------------------
+# Edge — tunnel and authenticated routing
+# -----------------------------------------------------------------------------
+.PHONY: edge-secrets
+edge-secrets: ## Install the tunnel token and reviewer password into the cluster
+	@bash tools/edge-secrets.sh
+
+.PHONY: edge-routes
+edge-routes: ## Point the three hostnames at the tunnel (only after auth is verified)
+	@for h in gitops argocd grafana; do \
+		cloudflared tunnel route dns gitops-platform "$$h.abdurahman.ly" 2>&1 | tail -1; \
+	done
 
 # -----------------------------------------------------------------------------
 # M3 — GitOps delivery
