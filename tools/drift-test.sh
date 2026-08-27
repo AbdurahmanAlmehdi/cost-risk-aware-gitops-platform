@@ -38,15 +38,25 @@ if [ "$DECLARED" = "$DRIFTED_VALUE" ]; then
 fi
 
 echo "--> introducing drift: setting the limit to $DRIFTED_VALUE directly on the cluster"
-kubectl -n "$NS" patch deploy "$DEPLOYMENT" --type=json -p "$(cat <<EOF
+
+# Confirm the drift landed by reading what the API server returned in the patch response,
+# NOT by reading the object back afterwards.
+#
+# A re-read is a race against the very thing being tested. Self-heal here reverts in about
+# a second, so the follow-up GET returns the restored value and the test concludes the patch
+# never applied — reporting FAIL on a platform that is working perfectly, and faster than
+# expected at that. It went unnoticed while the only cluster was a laptop kind cluster,
+# where reversion took ~5s and the race was comfortably won.
+#
+# The patch response is the authoritative record that the write was accepted and applied.
+APPLIED=$(kubectl -n "$NS" patch deploy "$DEPLOYMENT" --type=json -p "$(cat <<EOF
 [{"op":"replace","path":"/spec/template/spec/containers/0/resources/limits/memory","value":"$DRIFTED_VALUE"}]
 EOF
-)" >/dev/null
+)" -o jsonpath="{.spec.template.spec.containers[?(@.name=='$CONTAINER')].resources.limits.memory}")
 
-# Confirm the drift actually landed. Without this the test could "pass" simply because
-# the patch silently failed and the value never changed.
-if [ "$(current_limit)" != "$DRIFTED_VALUE" ]; then
+if [ "$APPLIED" != "$DRIFTED_VALUE" ]; then
   echo "FAIL: the drift patch did not apply, so there is nothing to detect."
+  echo "      The API server returned '$APPLIED' rather than '$DRIFTED_VALUE'."
   exit 1
 fi
 echo "    drift applied — the cluster now disagrees with Git"
@@ -56,7 +66,13 @@ elapsed=0
 while [ "$elapsed" -lt "$TIMEOUT" ]; do
   if [ "$(current_limit)" = "$DECLARED" ]; then
     echo
-    echo "PASS: the platform reverted the manual change after ~${elapsed}s."
+    if [ "$elapsed" -eq 0 ]; then
+      echo "PASS: the platform had already reverted the manual change before the first check."
+      echo "      Self-heal is faster than this test can observe, which is the good direction"
+      echo "      to fail to measure something in."
+    else
+      echo "PASS: the platform reverted the manual change after ~${elapsed}s."
+    fi
     echo "      Live state was corrected to match Git with no human involvement."
     exit 0
   fi
