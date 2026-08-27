@@ -26,8 +26,22 @@ spec:
         app.kubernetes.io/component: worker
         app.kubernetes.io/part-of: demo
     spec:
-      nodeSelector:
-        workload: apps
+      # Prefer the application node pool, but do not require it.
+      #
+      # Isolation from the platform tier is enforced by that node's NoSchedule taint,
+      # which these pods do not tolerate — this label was only ever a hint about where
+      # they belong. As a hard nodeSelector it also made single-node clusters impossible,
+      # since one node cannot carry two values of the same label key, so a review host or
+      # CI runner could never schedule the application at all.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values: ["apps"]
       # A worker finishes its current job before exiting, so termination must be given
       # room. This exceeds the queue's 5s blocking-pop timeout plus the longest
       # reasonable job, which is what makes a scale-down lossless rather than lossy.
