@@ -75,12 +75,6 @@ spec:
               containerPort: 8080
             - name: health
               containerPort: 8081
-          env:
-            - name: REVIEWER_PASSWORD_HASH
-              valueFrom:
-                secretKeyRef:
-                  name: edge-basic-auth
-                  key: reviewer-hash
           resources:
             requests:
               cpu: 50m

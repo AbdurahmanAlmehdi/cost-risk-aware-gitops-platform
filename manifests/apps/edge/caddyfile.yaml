@@ -1,14 +1,24 @@
-# Caddy is the cluster's internal router and its authentication layer.
+# Caddy is the cluster's internal router. Authentication happens in front of it, at
+# Cloudflare Access.
 #
-# cloudflared gets one catch-all rule and forwards everything here, so all routing lives in
-# a single place rather than being split across two components with different config
-# formats.
+# cloudflared forwards every routed hostname here, so all routing lives in a single place
+# rather than being split across two components with different config formats.
 #
-# Authentication is basic auth, and it is honestly the weaker half of the design:
-# no identity, no MFA, no per-person revocation, no audit trail. It exists because it works
-# today without a Cloudflare API token, and because leaving ArgoCD on a public hostname
-# with no auth at all was never acceptable. Cloudflare Access belongs in front of this as
-# the outer layer — the two are complementary, not alternatives.
+# Caddy used to hold a shared basic-auth password as well. That was a placeholder from
+# before Access was configured, and its own comment called it the weaker half of the
+# design: no identity, no MFA, no per-person revocation, no audit trail. Access now
+# provides all four, authenticating each reviewer individually by one-time PIN against an
+# explicit allow-list.
+#
+# Keeping both was not defence in depth, because the two layers do not fail independently:
+# a request only reaches Caddy through the tunnel, so anything that satisfies Access has
+# already crossed the only path in. What the shared password added was a second credential
+# handed to every reviewer out-of-band — one more thing to distribute, forget, and never
+# be able to revoke for one person. It was removed for that reason, not to save a step.
+#
+# This is safe only while Caddy is unreachable except through the tunnel. Its Service is
+# ClusterIP with no node port, which is what makes that true; exposing it directly would
+# put ArgoCD on the internet with no authentication at all.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -43,12 +53,6 @@ data:
       log {
         output stdout
         format console
-      }
-
-      # One credential shared by the review group. The hash is injected from a Secret that
-      # is never committed — the Caddyfile in Git contains no secret material.
-      basic_auth {
-        reviewer {env.REVIEWER_PASSWORD_HASH}
       }
 
       @gitops host gitops.abdurahman.ly
