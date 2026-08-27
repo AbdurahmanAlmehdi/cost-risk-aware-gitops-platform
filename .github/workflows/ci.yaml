@@ -231,6 +231,19 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Without this, checkout stores the default GITHUB_TOKEN as an
+          # http.<host>.extraheader Authorization entry in the repository's git config.
+          # That header takes precedence over credentials embedded in a remote URL, so the
+          # `git remote set-url` further down — which exists precisely to push as the PAT —
+          # had no effect, and the push authenticated as github-actions[bot] instead:
+          #
+          #   remote: Permission to <repo>.git denied to github-actions[bot]
+          #
+          # Read as a permissions error, it invites granting this job contents: write. That
+          # would be the wrong fix, and would dismantle the separation the block above
+          # describes. The credential simply must not outlive the clone that needed it.
+          persist-credentials: false
 
       - uses: actions/download-artifact@v4
         with:
