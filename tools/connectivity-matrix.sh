@@ -19,6 +19,34 @@ TIMEOUT=5
 pass=0; fail=0
 declare -a FAILURES=()
 
+# The demo namespace enforces PodSecurity "restricted", so a bare `kubectl run` is rejected
+# outright: no runAsNonRoot, no dropped capabilities, no seccomp profile. The probes were
+# being refused admission and every pair-wise check reported SKIPPED — the matrix ran to
+# completion while proving nothing about isolation, which is the exact failure this script
+# exists to prevent.
+#
+# Applied as --overrides so the probe is admitted under the same policy the real workloads
+# live under. A probe exempt from that policy would be testing a pod the cluster would
+# never actually schedule.
+PROBE_SECURITY_CONTEXT='{
+  "spec": {
+    "securityContext": {
+      "runAsNonRoot": true,
+      "runAsUser": 65534,
+      "seccompProfile": { "type": "RuntimeDefault" }
+    },
+    "containers": [{
+      "name": "%s",
+      "image": "%s",
+      "command": ["sleep", "%s"],
+      "securityContext": {
+        "allowPrivilegeEscalation": false,
+        "capabilities": { "drop": ["ALL"] }
+      }
+    }]
+  }
+}'
+
 cleanup() { kubectl -n "$NS" delete pod "$PROBE" --wait=false >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
@@ -39,7 +67,9 @@ probe_as() {
   local probe="probe-${identity}"
 
   kubectl -n "$NS" delete pod "$probe" --ignore-not-found --wait=true >/dev/null 2>&1
+  # shellcheck disable=SC2059
   kubectl -n "$NS" run "$probe" --image="$IMAGE" --labels="$labels" \
+    --overrides="$(printf "$PROBE_SECURITY_CONTEXT" "$probe" "$IMAGE" 300)" \
     --command -- sleep 300 >/dev/null 2>&1 || return 2
   kubectl -n "$NS" wait --for=condition=Ready "pod/$probe" --timeout=120s >/dev/null 2>&1 || return 2
 
@@ -59,7 +89,13 @@ check() {
 
   probe_as "$identity" "$labels" "$target" "$port" || rc=$?
   if [ "$rc" -eq 2 ]; then
-    printf "  %-56s SKIPPED (probe pod would not start)\n" "$description"
+    # A probe that will not start is an unproven assertion, not a neutral outcome. This
+    # previously returned without touching either counter, so six unstartable probes left
+    # the matrix reporting on the two checks that did not need a pod — a summary that
+    # looked like coverage. An unproven isolation claim now fails.
+    printf "  %-56s %s\n" "$description" "FAIL (probe pod would not start; assertion unproven)"
+    fail=$((fail + 1))
+    FAILURES+=("$description: probe pod would not start, so this path was never tested")
     return
   fi
   [ "$rc" -eq 0 ] && actual=allow || actual=deny
@@ -88,7 +124,9 @@ check "demo-worker -> demo-api:8080" deny worker "app.kubernetes.io/name=demo-wo
 
 echo
 echo "-- a pod with no allow-list entry is denied by default --"
+# shellcheck disable=SC2059
 kubectl -n "$NS" run "$PROBE" --image="$IMAGE" --labels="app=unauthorized" \
+  --overrides="$(printf "$PROBE_SECURITY_CONTEXT" "$PROBE" "$IMAGE" 600)" \
   --command -- sleep 600 >/dev/null 2>&1 || true
 kubectl -n "$NS" wait --for=condition=Ready "pod/$PROBE" --timeout=90s >/dev/null 2>&1 || true
 
@@ -102,7 +140,11 @@ if kubectl -n "$NS" get pod "$PROBE" >/dev/null 2>&1; then
     pass=$((pass + 1))
   fi
 else
-  printf "  %-56s %s\n" "unauthorized pod -> redis:6379" "SKIPPED (probe pod not ready)"
+  # Same reasoning as the pair-wise probes: default-deny is the single most important
+  # claim in M6, so failing to test it counts against the matrix rather than past it.
+  printf "  %-56s %s\n" "unauthorized pod -> redis:6379" "FAIL (probe pod not ready; assertion unproven)"
+  fail=$((fail + 1))
+  FAILURES+=("the default-deny check never ran: its probe pod would not start")
 fi
 
 echo
