@@ -37,11 +37,21 @@ probe() {
 }
 
 echo "--> baseline: no policy, connection should SUCCEED"
-if ! probe; then
-  echo "FAIL: pods cannot reach each other before any policy is applied."
-  echo "      This is a cluster/CNI health problem, not a policy problem."
-  exit 1
-fi
+# Readiness means the container is answering; it says nothing about whether kube-proxy has
+# programmed the Service's ClusterIP yet. Those are separate controllers, and on a fast
+# host the probe wins the race — the pod IP answers while the ClusterIP still refuses.
+# A single-shot probe here therefore reported a broken CNI for what is a few hundred
+# milliseconds of lag, and pointed the reader at the dataplane instead of at the clock.
+# Poll on the same terms as the policy probes below.
+for i in $(seq 1 15); do
+  probe && break
+  [ "$i" -eq 15 ] && {
+    echo "FAIL: pods cannot reach each other before any policy is applied."
+    echo "      This is a cluster/CNI health problem, not a policy problem."
+    exit 1
+  }
+  sleep 2
+done
 echo "    ok"
 
 echo "--> applying default-deny ingress, connection should now FAIL"
