@@ -166,6 +166,10 @@ gitops-bootstrap: argocd argocd-repo-secret ## Install ArgoCD and hand the clust
 drift-test: ## Prove self-heal reverts a manual change to a live resource
 	@bash tools/drift-test.sh
 
+.PHONY: image-digests
+image-digests: ## Rewrite pinned digests from published ones (DIGESTS=<dir of image->digest files>)
+	@bash tools/bump-digests.sh $${DIGESTS:?usage: make image-digests DIGESTS=<dir>}
+
 # -----------------------------------------------------------------------------
 # M2 — pre-merge gate
 # -----------------------------------------------------------------------------

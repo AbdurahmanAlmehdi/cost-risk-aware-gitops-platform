@@ -129,6 +129,19 @@ jobs:
             echo "at different bytes after the gate has approved it."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Matrix job outputs collapse to whichever leg finished last, so each leg writes its
+      # digest to an artifact instead and the bump job collects all of them.
+      - name: Hand the digest to the image-update job
+        run: |
+          mkdir -p digests
+          printf '%s' "${{ steps.push.outputs.digest }}" > "digests/${{ matrix.image }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.image }}
+          path: digests/${{ matrix.image }}
+          retention-days: 1
+
   gate:
     name: Cost and policy gate
     runs-on: ubuntu-latest
@@ -189,3 +202,143 @@ jobs:
             2) echo "::error::Gate could not complete its evaluation, so it did not pass the change."; exit 1 ;;
             *) echo "::error::Gate exited unexpectedly (${{ steps.evaluate.outputs.verdict_exit }})."; exit 1 ;;
           esac
+
+  # ---------------------------------------------------------------------------------------
+  # M1/M3 — close the image-update loop.
+  #
+  # Without this job, application code is the one change type that never reaches the
+  # cluster: a manifest change merges and ArgoCD applies it, but a Go change merges, CI
+  # publishes a new image, and nothing updates the digest that would deploy it. The result
+  # is a new image that nothing references — which is why editing Go and watching nothing
+  # happen was the expected behaviour rather than a bug.
+  #
+  # This opens a PULL REQUEST rather than writing to main or to the cluster. ArgoCD Image
+  # Updater would do the latter, and that would make the one change type that alters what
+  # actually runs the one change nobody reviews — the exact inverse of what this platform
+  # argues for. A digest bump is a diff, and diffs go through the gate.
+  # ---------------------------------------------------------------------------------------
+  bump:
+    name: Open a digest-bump pull request
+    runs-on: ubuntu-latest
+    needs: build
+    # Only after a merge. On a pull request the image is published so the change can be
+    # evaluated, but bumping a digest there would rewrite the branch under review.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      # Deliberately read-only. The writing is done with a separate token, so this
+      # workflow's own GITHUB_TOKEN never gains the ability to push to the repository it is
+      # gating. main has no branch protection, so that restraint is doing real work.
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+
+      - name: Rewrite the pinned digests
+        run: bash tools/bump-digests.sh digests | tee bump.log
+
+      - name: Decide what to do
+        id: state
+        env:
+          BUMP_TOKEN: ${{ secrets.IMAGE_BUMP_TOKEN }}
+        # Both facts are resolved here rather than in the `if:` of a later step, because a
+        # step's own env block is not reliably visible to its own condition.
+        run: |
+          if git diff --quiet -- manifests/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Every manifest already pins the published digest." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$BUMP_TOKEN" ]; then
+            echo "token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A pull request opened with the default GITHUB_TOKEN does not trigger workflows —
+      # GitHub suppresses that to prevent runaway recursion. The consequence is specific and
+      # unacceptable here: the bump would arrive as a pull request carrying no gate verdict,
+      # which is the one kind of change this platform must never produce. So the job fails
+      # loudly, and prints the exact diff it would have proposed so the bump can still be
+      # made by hand.
+      - name: Refuse to open an ungated pull request
+        if: steps.state.outputs.changed == 'true' && steps.state.outputs.token == 'false'
+        run: |
+          {
+            echo "### Digest bump needed, but not proposed"
+            echo
+            echo "A new image was published and the manifests still pin the previous digest,"
+            echo "but no IMAGE_BUMP_TOKEN secret is configured."
+            echo
+            echo "A pull request opened with the default GITHUB_TOKEN does not trigger"
+            echo "workflows, so it would carry no gate verdict. This job refuses to do that."
+            echo
+            echo "Fix: add a fine-grained personal access token as the repository secret"
+            echo "IMAGE_BUMP_TOKEN, scoped to this repository with Contents: read and write"
+            echo "and Pull requests: read and write."
+            echo
+            echo "The change it would have proposed:"
+            echo '```'
+            cat bump.log
+            echo '```'
+            echo '```diff'
+            git diff -- manifests/
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::Digest bump needed but IMAGE_BUMP_TOKEN is not configured. The run summary contains the exact change."
+          exit 1
+
+      - name: Propose the bump
+        if: steps.state.outputs.changed == 'true' && steps.state.outputs.token == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.IMAGE_BUMP_TOKEN }}
+        run: |
+          BRANCH=automation/image-digests
+          git config user.name  "gitops-platform-ci"
+          git config user.email "ci@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add manifests/
+          git commit -F - <<'MSG'
+          Pin the manifests to the images CI just published
+
+          Opened automatically after a merge to main. Application code changes otherwise
+          never reach the cluster: CI publishes a new image and nothing updates the digest
+          that would deploy it, so the new image exists and nothing references it.
+
+          This is a proposal, not a deployment. It passes through the cost and policy gate
+          like any other change.
+          MSG
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # Force-push the same branch every time, so a run of merges keeps one pull request
+          # current rather than accumulating a queue of stale ones.
+          git push -f origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[0].number')" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "Pin the manifests to the images CI just published" \
+              --body-file - <<'BODY'
+          Opened automatically after a merge to `main`.
+
+          Application code changes otherwise never reach the cluster. CI publishes a new
+          image on every merge, but the manifests pin a digest and nothing updated it — so a
+          new image existed that nothing referenced.
+
+          This is a **proposal**, not a deployment. It carries a gate verdict like any other
+          change. ArgoCD Image Updater was rejected for the opposite reason: writing straight
+          to the cluster or to `main` would make the one change type that alters what
+          actually runs the one change nobody reviews.
+          BODY
+          else
+            echo "Updated the existing pull request."
+          fi
+          {
+            echo "### Digest bump proposed"
+            echo
+            echo '```'
+            cat bump.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
