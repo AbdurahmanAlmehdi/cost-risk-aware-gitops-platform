@@ -33,10 +33,43 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      # The image ships /usr/bin/caddy with a file capability (cap_net_bind_service=ep).
+      # allowPrivilegeEscalation: false sets no_new_privs, and the kernel refuses to exec a
+      # file carrying capabilities while that is set — so the container died with
+      # "exec /usr/bin/caddy: operation not permitted" before Caddy could log anything.
+      #
+      # Caddy binds 8080 and 8081 here. Both are unprivileged, so the capability the image
+      # ships is dead weight in this deployment. Copying the binary drops it, because file
+      # capabilities are not preserved by cp — which keeps every restriction in place rather
+      # than trading one away. Raising allowPrivilegeEscalation would satisfy the kernel and
+      # violate GATE-005's sibling GATE-010, and would be a real loosening to work around a
+      # capability that is not even wanted.
+      initContainers:
+        - name: strip-file-capabilities
+          image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+          command: ["cp", "/usr/bin/caddy", "/opt/caddy/caddy"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: bin
+              mountPath: /opt/caddy
       containers:
         - name: caddy
           image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
-          args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+          # command, not args: the image's entrypoint is the very binary being avoided, so
+          # leaving it in place would exec the capability-bearing copy no matter what
+          # arguments followed.
+          command: ["/opt/caddy/caddy"]
+          args: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
           ports:
             - name: http
               containerPort: 8080
@@ -75,6 +108,9 @@ spec:
             capabilities:
               drop: ["ALL"]
           volumeMounts:
+            - name: bin
+              mountPath: /opt/caddy
+              readOnly: true
             - name: config
               mountPath: /etc/caddy
               readOnly: true
@@ -83,6 +119,10 @@ spec:
             - name: cfg-home
               mountPath: /config
       volumes:
+        # Holds the de-capabilitised copy of the Caddy binary. emptyDir, so it is recreated
+        # from the image on every start and cannot drift from what the digest describes.
+        - name: bin
+          emptyDir: {}
         - name: config
           configMap:
             name: caddy-config
