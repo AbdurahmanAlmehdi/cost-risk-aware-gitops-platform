@@ -21,16 +21,11 @@ resources:
 images:
   - name: demo-dashboard
     newName: ghcr.io/abdurahmanalmehdi/cost-risk-aware-gitops-platform/demo-dashboard
-    # ---------------------------------------------------------------------------
-    # PLACEHOLDER — this deployment cannot pull until this line is replaced.
+    # Pinned to a digest, never a tag. A tag is a mutable pointer: the bytes behind it can
+    # be replaced after M2 has approved them, so everything the gate checked would describe
+    # an artefact that is no longer the one being deployed. The digest is what makes
+    # "what M2 evaluated is what M3 deploys" a guarantee rather than an intention.
     #
-    # The image has never been published: CI builds it for the first time on the pull
-    # request that adds this file, so no digest existed when the file was written. Take
-    # the digest from that run's "Published image: demo-dashboard" summary and replace
-    # the value below before merging.
-    #
-    # It is left obviously invalid rather than plausible on purpose. A real-looking digest
-    # would pass GATE-014 and merge quietly, and the failure would surface later as an
-    # ImagePullBackOff nobody was expecting.
-    # ---------------------------------------------------------------------------
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    # This is the one line CI rewrites when publishing a new image, which keeps an image
+    # update a one-line, reviewable diff that passes through the gate like any other change.
+    digest: sha256:f78d0975cc3775861a2602ee2d1584c733697015d8345b5bf88c5bfecbae5dbf
