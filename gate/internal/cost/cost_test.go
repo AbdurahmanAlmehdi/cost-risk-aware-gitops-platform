@@ -251,7 +251,7 @@ spec:
           resources: {requests: {cpu: "1", memory: 0}}
 `)
 
-	d := cost.Compare(base, head)
+	d := cost.Compare(base, head, base.MonthlyUSD)
 	assertMoney(t, d.BaselineMonthlyUSD, 10.00)
 	assertMoney(t, d.ProjectedMonthlyUSD, 30.00)
 	assertMoney(t, d.DeltaMonthlyUSD, 20.00)
@@ -282,7 +282,7 @@ spec:
         - name: app
           resources: {requests: {cpu: "1", memory: 0}}
 `)
-	d := cost.Compare(cost.Estimate{}, head)
+	d := cost.Compare(cost.Estimate{}, head, 0)
 	if d.HasPercentBasis {
 		t.Error("a workload with no baseline reported a percentage increase")
 	}

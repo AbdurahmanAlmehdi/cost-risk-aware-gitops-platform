@@ -51,7 +51,7 @@ jobs:
       # plane (M4) depend on, and neither depends on the other.
       - name: Test every module
         run: |
-          for module in pricing app gate exporter; do
+          for module in pricing app gate exporter dashboard; do
             echo "::group::$module"
             (cd "$module" && go vet ./... && go test ./...)
             echo "::endgroup::"
@@ -76,6 +76,12 @@ jobs:
           - image: cost-exporter
             context: .
             dockerfile: exporter/Dockerfile
+          # The dashboard builds from dashboard/ alone. Unlike the exporter it shares no
+          # module with the rest of the repository — it depends on nothing outside the
+          # standard library — so the narrower context is the correct one.
+          - image: demo-dashboard
+            context: dashboard
+            dockerfile: dashboard/Dockerfile
     steps:
       - uses: actions/checkout@v5
 

@@ -1,0 +1,94 @@
+# What the dashboard is allowed to do to the cluster, which is deliberately almost nothing.
+#
+# This is the only workload in the edge namespace that holds a ServiceAccount token, and it
+# is reachable — through Caddy — from the internet. So the permissions below are the
+# security boundary that matters most in this repository, and they are drawn as narrowly as
+# the two demonstrations allow:
+#
+#   * two namespaced Roles, never a ClusterRole — the token is useless outside demo/argocd
+#   * one single write verb, `patch` on deployments in `demo`, which is the drift proof
+#   * no secrets, no pods, no exec, no create, no delete, anywhere
+#
+# `pods/exec` is the permission that would turn this into the web terminal the project
+# refused. Its absence here is the enforcement of that decision; the missing HTTP handler
+# is only the intention.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-dashboard
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+---
+# The demo namespace: read the two workloads the proofs watch, and move exactly one field.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-dashboard
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    # `get` reads replica counts and the declared memory limit; `patch` applies the drift.
+    # Not `update` — a patch can only alter the fields it names, while an update replaces
+    # the whole object and would let a bug rewrite the deployment wholesale.
+    verbs: ["get", "patch"]
+  - apiGroups: ["keda.sh"]
+    resources: ["scaledobjects"]
+    # Read-only. The load proof asserts replicas stay within the authorised bounds, so it
+    # has to read them — and must never be able to widen them.
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-dashboard
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: demo-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: demo-dashboard
+    namespace: edge
+---
+# The argocd namespace: list applications so the page can show the tree is green. Reading
+# an Application also reveals the repository URL it syncs from, which is public, and
+# nothing else sensitive — ArgoCD keeps credentials in Secrets this Role cannot touch.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-dashboard
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-dashboard
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: demo-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: demo-dashboard
+    namespace: edge

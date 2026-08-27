@@ -1,0 +1,76 @@
+# Caddy is the cluster's internal router and its authentication layer.
+#
+# cloudflared gets one catch-all rule and forwards everything here, so all routing lives in
+# a single place rather than being split across two components with different config
+# formats.
+#
+# Authentication is basic auth, and it is honestly the weaker half of the design:
+# no identity, no MFA, no per-person revocation, no audit trail. It exists because it works
+# today without a Cloudflare API token, and because leaving ArgoCD on a public hostname
+# with no auth at all was never acceptable. Cloudflare Access belongs in front of this as
+# the outer layer — the two are complementary, not alternatives.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: caddy-config
+  namespace: edge
+data:
+  Caddyfile: |
+    {
+      # Cloudflare terminates TLS at its edge and cloudflared forwards plain HTTP over the
+      # tunnel, so Caddy must not try to obtain certificates of its own — it would fail the
+      # ACME challenge, since nothing can reach it directly.
+      auto_https off
+      # The admin API can reconfigure the server at runtime. Nothing here uses it, and an
+      # unauthenticated control plane inside the one pod exposed to the internet is exactly
+      # the kind of thing that turns a small mistake into a large one.
+      admin off
+      servers {
+        # Trust the tunnel's forwarded client address so logs and any future rate limiting
+        # see the real visitor rather than the cloudflared pod.
+        trusted_proxies static private_ranges
+      }
+    }
+
+    # Liveness only. Deliberately unauthenticated and deliberately not routed by the tunnel:
+    # it is reachable from inside the cluster, never from outside.
+    :8081 {
+      respond /healthz "ok" 200
+      respond * "not found" 404
+    }
+
+    :8080 {
+      log {
+        output stdout
+        format console
+      }
+
+      # One credential shared by the review group. The hash is injected from a Secret that
+      # is never committed — the Caddyfile in Git contains no secret material.
+      basic_auth {
+        reviewer {env.REVIEWER_PASSWORD_HASH}
+      }
+
+      @gitops host gitops.abdurahman.ly
+      handle @gitops {
+        reverse_proxy demo-dashboard.edge.svc.cluster.local:8080
+      }
+
+      @argocd host argocd.abdurahman.ly
+      handle @argocd {
+        # ArgoCD runs with server.insecure, so it speaks plain HTTP inside the cluster.
+        # The hop from Cloudflare to here is TLS; this last hop stays inside the cluster.
+        reverse_proxy argocd-server.argocd.svc.cluster.local:80
+      }
+
+      @grafana host grafana.abdurahman.ly
+      handle @grafana {
+        reverse_proxy observability-grafana.observability.svc.cluster.local:80
+      }
+
+      # Anything not explicitly routed is refused rather than guessed at. A default that
+      # forwarded somewhere would make a typo'd hostname silently reach a real service.
+      handle {
+        respond "no application is routed at this hostname" 404
+      }
+    }

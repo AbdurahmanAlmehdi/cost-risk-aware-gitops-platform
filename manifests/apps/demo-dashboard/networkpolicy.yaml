@@ -1,0 +1,40 @@
+# The dashboard's permitted inbound paths.
+#
+# Ingress is restricted to Caddy alone. This is the rule that makes the authentication
+# real: the endpoints that introduce drift and spend money are reachable from exactly one
+# pod in the cluster, and that pod challenges for credentials before forwarding anything.
+# Without this, any pod in any namespace could POST to /api/demo/load directly and bypass
+# the password entirely.
+#
+# Egress is deliberately NOT constrained here, and the omission is worth stating rather
+# than hiding. The dashboard must reach the Kubernetes API server, whose address is not
+# expressible portably in a NetworkPolicy — it is a node IP on kind and k3s but a public
+# endpoint on DOKS, so any ipBlock correct for one is wrong for the other. A rule that is
+# silently wrong would leave the page rendering "unknown" everywhere with no indication
+# why, which is a worse outcome than an unconstrained egress from a pod that already holds
+# a (tightly bounded) API token. The demo namespace, where the workloads that matter live,
+# is default-deny in both directions and controls this path from its own side: see
+# manifests/apps/demo-api/networkpolicy.yaml, which admits the edge namespace explicitly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demo-dashboard-allow
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+    gitops-platform.io/module: m6
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: demo-dashboard
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: caddy
+      ports:
+        - protocol: TCP
+          port: 8080

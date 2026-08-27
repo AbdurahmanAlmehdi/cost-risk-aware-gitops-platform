@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caddy
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: caddy
+    app.kubernetes.io/component: edge-router
+    app.kubernetes.io/part-of: gitops-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caddy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: caddy
+        app.kubernetes.io/component: edge-router
+        app.kubernetes.io/part-of: gitops-platform
+      annotations:
+        # Roll the pod when the routing or credentials change. A ConfigMap edit alone does
+        # not restart anything, so without this Caddy would keep serving the old routes and
+        # the old password long after Git said otherwise.
+        gitops-platform.io/config-hash: "caddyfile-v1"
+    spec:
+      # No API access whatsoever. Caddy forwards packets; it has no business holding a
+      # token for the cluster it is the front door to.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: caddy
+          image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+          args: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: health
+              containerPort: 8081
+          env:
+            - name: REVIEWER_PASSWORD_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: edge-basic-auth
+                  key: reviewer-hash
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            # A Service routes to this pod, so readiness is required — both by Kubernetes,
+            # to avoid sending traffic to a Caddy still parsing its config, and by the
+            # platform's own GATE-006.
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/caddy
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: cfg-home
+              mountPath: /config
+      volumes:
+        - name: config
+          configMap:
+            name: caddy-config
+        # Caddy writes state even with automatic HTTPS disabled, and the root filesystem is
+        # read-only, so both paths need somewhere writable that does not outlive the pod.
+        - name: data
+          emptyDir: {}
+        - name: cfg-home
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: caddy
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: caddy
+    app.kubernetes.io/part-of: gitops-platform
+spec:
+  selector:
+    app.kubernetes.io/name: caddy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

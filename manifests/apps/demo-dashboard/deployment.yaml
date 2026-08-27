@@ -1,0 +1,92 @@
+# The demonstration dashboard — the one page a reviewer is given.
+#
+# It sits in the edge namespace because that is where the authenticated router is, and
+# Caddy reaches it over the cluster network at demo-dashboard.edge.svc.cluster.local:8080.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-dashboard
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/part-of: gitops-platform
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  # One replica, and it must stay one. The server permits a single demonstration at a
+  # time by holding a mutex in memory, which is only a real guarantee while there is one
+  # process. Two replicas behind one Service could run a drift proof and a load proof
+  # against the same deployment simultaneously and report nonsense to both viewers.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-dashboard
+        app.kubernetes.io/component: dashboard
+        app.kubernetes.io/part-of: gitops-platform
+    spec:
+      serviceAccountName: demo-dashboard
+      # Deliberate, and the exception to this namespace's rule: Caddy and cloudflared
+      # forward packets and hold no token, while this service exists to read cluster state,
+      # so it must. What that token can do is bounded in rbac.yaml rather than here.
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dashboard
+          # Rewritten by kustomize to a digest-pinned reference. Never a floating tag:
+          # M2 evaluates a specific image and M3 must deploy that exact image.
+          image: demo-dashboard
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: LISTEN_ADDR
+              value: ":8080"
+            # The job endpoint that drives spending. It has no public hostname of its own —
+            # this in-cluster address is the only way the dashboard reaches it, which is
+            # what keeps "run a load test" behind authentication.
+            - name: DEMO_API_URL
+              value: http://demo-api.demo.svc.cluster.local:8080
+            - name: PROMETHEUS_URL
+              value: http://observability-kube-prometh-prometheus.observability.svc:9090
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              # No CPU limit, matching the rest of the platform: a limit throttles rather
+              # than evicts, and a throttled dashboard would stall mid-proof and look like
+              # the platform had failed rather than the page.
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          readinessProbe:
+            # Liveness and readiness point at different handlers that both return ok, on
+            # purpose. Readiness is NOT tied to the cluster being healthy: this page is
+            # most useful precisely when something is wrong, and dropping out of the
+            # Service the moment Prometheus hiccups would remove the instrument that
+            # explains the hiccup. Missing data surfaces as "unknown" tiles instead.
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            # The web assets are compiled into the binary, so nothing is ever written to
+            # disk and no writable volume is needed at all — unlike Caddy, which needs two.
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

@@ -317,7 +317,20 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		baseEstimate = mergeEstimates(baseEstimate, be)
 	}
 
-	delta := cost.Compare(baseEstimate, headEstimate)
+	// The percentage denominator: every priced workload at the base commit, not just the
+	// roots this change touches. Computing it costs one extra pass over the repository and
+	// is what stops the headline percentage from depending on which directories the author
+	// happened to edit.
+	estateBaseline, estateErr := priceEstate(baseTree, cfg.Spec.Paths.Manifests, baseCalc)
+	if estateErr != nil {
+		// Reported, not fatal. Without it the percentage check is skipped and the absolute
+		// threshold still applies, which is a narrower gate but not a broken one.
+		v.Notes = append(v.Notes, fmt.Sprintf(
+			"could not price the full estate at the base commit (%v), so no percentage "+
+				"threshold was applied — only the absolute limit.", estateErr))
+	}
+
+	delta := cost.Compare(baseEstimate, headEstimate, estateBaseline)
 
 	// The two sub-gates are independent: a cost failure must not suppress policy
 	// findings, because the author should learn about both in one round trip rather
@@ -375,6 +388,31 @@ func ratesChanged(base, head *pricing.Table) bool {
 		base.Spec.HoursPerMonth != head.Spec.HoursPerMonth ||
 		base.Spec.MissingRequests != head.Spec.MissingRequests ||
 		base.Spec.Currency != head.Spec.Currency
+}
+
+// priceEstate totals every priced workload in a tree.
+//
+// Used only as the percentage denominator, so a root that fails to render is skipped
+// rather than failing the run: an unrenderable directory is already reported as a blocking
+// cost error by the main evaluation, and failing twice for one cause would bury it.
+func priceEstate(treeDir, manifestsPath string, calc *cost.Calculator) (float64, error) {
+	roots, err := render.AllRoots(treeDir, manifestsPath)
+	if err != nil {
+		return 0, err
+	}
+	var total float64
+	for _, root := range roots {
+		objects, err := render.Dir(root)
+		if err != nil {
+			continue
+		}
+		est, err := calc.Estimate(objects)
+		if err != nil {
+			continue
+		}
+		total += est.MonthlyUSD
+	}
+	return total, nil
 }
 
 func mergeEstimates(a, b cost.Estimate) cost.Estimate {
