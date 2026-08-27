@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# No namespace transformer here, unlike the other applications.
+#
+# This is the one component whose resources deliberately span three namespaces: the
+# workload runs in edge, but its Roles and RoleBindings must be created in demo and argocd,
+# because that is where the resources they grant access to live. A `namespace: edge`
+# directive rewrites all of them to edge — which collapses the two Roles into one name and
+# produces a build-time ID conflict, and would otherwise have granted nothing at all.
+# Every file below states its own namespace explicitly instead.
+
+# Every file listed explicitly — kustomize ignores what it is not told about, silently,
+# which has already cost this project one dashboard that deployed and did nothing.
+resources:
+  - rbac.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+
+images:
+  - name: demo-dashboard
+    newName: ghcr.io/abdurahmanalmehdi/cost-risk-aware-gitops-platform/demo-dashboard
+    # ---------------------------------------------------------------------------
+    # PLACEHOLDER — this deployment cannot pull until this line is replaced.
+    #
+    # The image has never been published: CI builds it for the first time on the pull
+    # request that adds this file, so no digest existed when the file was written. Take
+    # the digest from that run's "Published image: demo-dashboard" summary and replace
+    # the value below before merging.
+    #
+    # It is left obviously invalid rather than plausible on purpose. A real-looking digest
+    # would pass GATE-014 and merge quietly, and the failure would surface later as an
+    # ImagePullBackOff nobody was expecting.
+    # ---------------------------------------------------------------------------
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

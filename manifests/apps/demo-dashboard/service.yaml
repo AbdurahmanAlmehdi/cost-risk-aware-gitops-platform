@@ -1,0 +1,20 @@
+# ClusterIP only. There is deliberately no NodePort here, unlike demo-api: the dashboard
+# can drive load tests and introduce drift, so the single path to it runs through Caddy,
+# which authenticates. A NodePort would be a second, unauthenticated door to the same
+# actions.
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-dashboard
+  namespace: edge
+  labels:
+    app.kubernetes.io/name: demo-dashboard
+    app.kubernetes.io/part-of: gitops-platform
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: demo-dashboard
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

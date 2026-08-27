@@ -1,8 +1,15 @@
 # The edge namespace: the only place in the cluster that terminates traffic from outside.
 #
 # Kept separate from both the platform and the application so its permissions can be
-# reasoned about on their own. Nothing here talks to the Kubernetes API — Caddy and
-# cloudflared are pure network components, and neither is given a ServiceAccount token.
+# reasoned about on their own. Caddy and cloudflared are pure network components: they
+# forward packets, and neither is given a ServiceAccount token.
+#
+# The demo dashboard is the single exception, and it is stated here rather than left to be
+# discovered. It exists to report cluster state, so it must hold a token — which means this
+# namespace, the one the internet can reach, now contains something that can call the
+# Kubernetes API. What that token can do is drawn as narrowly as the page allows: two
+# namespaced Roles, no ClusterRole, and one write verb in total. See
+# manifests/apps/demo-dashboard/rbac.yaml, which is the boundary this comment is pointing at.
 apiVersion: v1
 kind: Namespace
 metadata:

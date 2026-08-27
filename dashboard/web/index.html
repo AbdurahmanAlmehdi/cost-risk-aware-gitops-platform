@@ -1,0 +1,375 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cost- and Risk-Aware GitOps Platform</title>
+<!--
+  The demonstration runbook (docs/DEMO.md) as a page.
+
+  Written for someone who will never read the code and may not know what a container is.
+  Every act states its claim in plain English first and shows the evidence second. The
+  only controls on this page are two buttons that run two fixed proofs; there is no field
+  to type into, because there is nothing here that takes input.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfbfa;   --panel: #fff;      --ink: #1a1a19;  --muted: #6b6b68;
+    --line: #e4e4e0; --accent: #3a5a9b;  --pass: #2f6f4f; --fail: #a33a2e;
+    --code: #f4f4f2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;   --panel: #1d2025;  --ink: #e8e8e6;  --muted: #9a9a96;
+      --line: #2e3239; --accent: #8fb0e8; --pass: #7fc9a0; --fail: #e8897c;
+      --code: #22262c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 1.75rem; margin-bottom: 2rem; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .5rem; letter-spacing: -.01em; }
+  .lede { color: var(--muted); margin: 0; max-width: 60ch; }
+
+  /* Status strip ---------------------------------------------------------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin: 1.5rem 0 0; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .85rem .95rem; }
+  .tile dt { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 .3rem; }
+  .tile dd { margin: 0; font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .tile .sub { font-size: .75rem; font-weight: 400; color: var(--muted); display: block; margin-top: .15rem; }
+  .tile dd.unknown { color: var(--muted); font-weight: 500; font-size: 1rem; }
+
+  /* Acts ------------------------------------------------------------------ */
+  section { border-top: 1px solid var(--line); padding-top: 2rem; margin-top: 2.25rem; }
+  .act { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); font-weight: 700; margin: 0 0 .4rem; }
+  h2 { font-size: 1.15rem; margin: 0 0 .75rem; letter-spacing: -.01em; }
+  p { max-width: 64ch; }
+  .claim {
+    border-left: 3px solid var(--accent); padding: .1rem 0 .1rem 1rem;
+    margin: 1.25rem 0; color: var(--ink); font-size: 1.02rem;
+  }
+  .note { font-size: .87rem; color: var(--muted); }
+
+  /* Controls -------------------------------------------------------------- */
+  .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1.25rem 0 0; }
+  button, .linkbtn {
+    font: inherit; font-size: .92rem; font-weight: 600; cursor: pointer;
+    background: var(--accent); color: #fff; border: 1px solid transparent;
+    padding: .6rem 1.1rem; border-radius: 8px; text-decoration: none; display: inline-block;
+  }
+  .linkbtn { background: var(--panel); color: var(--ink); border-color: var(--line); }
+  button:hover:not(:disabled), .linkbtn:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:focus-visible, .linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Streamed output ------------------------------------------------------- */
+  .log {
+    margin-top: 1.1rem; background: var(--code); border: 1px solid var(--line);
+    border-radius: 10px; padding: .85rem 1rem; max-height: 22rem; overflow-y: auto;
+    font: .84rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .log:empty { display: none; }
+  .log .line { display: flex; gap: .6rem; padding: .12rem 0; }
+  .log .mark { flex: 0 0 auto; width: 1.1rem; text-align: center; }
+  .log .info .mark { color: var(--muted); }
+  .log .pass { color: var(--pass); font-weight: 600; }
+  .log .fail { color: var(--fail); font-weight: 600; }
+
+  /* Application list ------------------------------------------------------ */
+  .apps { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; padding: 0; list-style: none; }
+  .apps li {
+    font-size: .8rem; border: 1px solid var(--line); border-radius: 999px;
+    padding: .22rem .7rem; background: var(--panel); color: var(--muted);
+  }
+  .apps li.ok { color: var(--pass); border-color: color-mix(in srgb, var(--pass) 35%, var(--line)); }
+  .apps li.bad { color: var(--fail); border-color: color-mix(in srgb, var(--fail) 35%, var(--line)); }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+  code { background: var(--code); padding: .1rem .35rem; border-radius: 4px; font-size: .88em; }
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Cost- and Risk-Aware GitOps Platform</h1>
+  <p class="lede">
+    This platform prices and checks a change before it can merge, deploys it only after it
+    passes, then measures it against that prediction while it runs. Everything below is
+    live: the numbers come from the running cluster, and the two buttons run real proofs
+    against it.
+  </p>
+  <dl class="tiles" id="tiles"></dl>
+  <p class="note" id="freshness"></p>
+</header>
+
+<section>
+  <p class="act">Act 1 — the problem</p>
+  <h2>A one-line change that nobody could see</h2>
+  <p>
+    A developer changes one line in a deployment file — replicas from 1 to 8 — because a
+    load test was slow. Nobody notices. It passes review, because reviewers read code, not
+    capacity. The cluster grows eightfold. The finance team finds out five weeks later, on
+    an invoice, with no way to trace which change caused it.
+  </p>
+  <p class="claim">Every part of that is normal, and every part of it is preventable.</p>
+</section>
+
+<section>
+  <p class="act">Act 2 — govern before it runs</p>
+  <h2>The change is priced at review, not on the invoice</h2>
+  <p>
+    Pull request #1 is real, still open, and still blocked. The gate priced it before
+    anything ran: <strong>$11.73 → $370.62, a 3060% increase</strong>. It also failed
+    GATE-005 — a container with no health check, which Kubernetes could never restart if it
+    hung. So the gate checks safety, not only money.
+  </p>
+  <p class="claim">
+    Cost review normally happens monthly, in a spreadsheet, after the money is spent. Here
+    it happens at code review, before anything is deployed, in the place the decision is
+    actually made.
+  </p>
+  <p class="note">
+    Pull request #3 shows the same machinery approving a change — worth thirty seconds,
+    otherwise the gate looks like something that only ever says no. The thresholds
+    themselves live in a version-controlled file, and changing them goes through this same
+    gate.
+  </p>
+  <div class="actions">
+    <a class="linkbtn" target="_blank" rel="noopener"
+       href="https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform/pull/1">
+      Open PR #1 — blocked</a>
+    <a class="linkbtn" target="_blank" rel="noopener"
+       href="https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform/pull/3">
+      Open PR #3 — passed</a>
+  </div>
+</section>
+
+<section>
+  <p class="act">Act 3 — Git governs the cluster</p>
+  <h2>Manual changes do not survive here</h2>
+  <p>
+    Every application below came from a merged pull request. Nobody on this project has run
+    a deploy command — there isn't one.
+  </p>
+  <ul class="apps" id="apps"><li>loading…</li></ul>
+  <p>
+    The button edits the live cluster directly — the way an engineer would at 3am during an
+    incident — by setting a memory limit the repository never authorised. Then it waits,
+    and does nothing else.
+  </p>
+  <div class="actions">
+    <button id="run-drift">Run the drift proof</button>
+  </div>
+  <div class="log" id="log-drift" aria-live="polite"></div>
+  <p class="claim">
+    That is the difference between Git being where the configuration is <em>kept</em> and
+    Git being what the cluster <em>is</em>.
+  </p>
+</section>
+
+<section>
+  <p class="act">Act 4 — measure while it runs</p>
+  <h2>The estimate can be checked, not just trusted</h2>
+  <p>
+    The tiles at the top of this page show <strong>reserved</strong> spend — what we are
+    paying for — against <strong>actual</strong> use. The gap between them is waste: money
+    spent on capacity nobody used. Low utilisation is not automatically bad; it is headroom
+    we chose to buy. The point is that it is now a decision instead of an accident.
+  </p>
+  <p class="claim">
+    The cost quoted on the pull request and the cost on this page are computed from the
+    same rate table by the same code. So the estimate can be checked against reality rather
+    than believed.
+  </p>
+</section>
+
+<section>
+  <p class="act">Act 5 — demand drives cost</p>
+  <h2>Demand arrives, the platform responds, and the response has a price</h2>
+  <p>
+    The button puts 600 jobs on the queue. Nothing is reconfigured — the system reacts on
+    its own. Watch three things in order: the queue fills, replicas climb, and the backlog
+    drains again.
+  </p>
+  <div class="actions">
+    <button id="run-load">Run the load proof</button>
+  </div>
+  <div class="log" id="log-load" aria-live="polite"></div>
+  <p class="claim">
+    Autoscaling demonstrations usually stop at the middle step — replicas went up,
+    therefore it works. That only proves something happened. The queue draining proves it
+    <em>helped</em>.
+  </p>
+  <p class="note">
+    If you ask what stops it scaling to a thousand: the gate prices an autoscaler at its
+    <em>ceiling</em>, so authorising a maximum is itself a reviewed, costed decision.
+  </p>
+</section>
+
+<section>
+  <p class="act">Act 6 — none of this is a slide</p>
+  <h2>Every claim is a command that fails loudly</h2>
+  <p>
+    The two proofs on this page are the same checks <code>make verify</code> runs in a
+    terminal, driven through fixed API calls instead of a shell. They assert rather than
+    narrate: if the platform stopped reverting drift, or replicas rose without the backlog
+    clearing, the output above would say so in red.
+  </p>
+  <p class="note">
+    Worth volunteering: the cost figures are <em>modelled</em>, not billed — published cloud
+    rates applied to this cluster. What is demonstrated is that prediction and measurement
+    agree, not that the money is real. The gate can also only price what it renders from
+    Git, so components installed from Helm charts show as $0.00.
+  </p>
+</section>
+
+<footer>
+  Reserved and actual spend are modelled from a version-controlled rate table. This page
+  drives three fixed actions and holds no shell.
+</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const usd = n => "$" + n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const num = n => n.toLocaleString(undefined, {maximumFractionDigits: 0});
+
+  // A tile renders "unknown" rather than 0 when the platform could not answer. Showing a
+  // zero for missing cost data is the one failure this dashboard must never commit: it
+  // reads as "this costs nothing" when the truth is "the exporter stopped".
+  function tile(label, m, format, sub) {
+    const known = m && m.value !== null && m.value !== undefined;
+    const body = known
+      ? `<dd>${format(m.value)}${sub ? `<span class="sub">${sub}</span>` : ""}</dd>`
+      : `<dd class="unknown" title="${m && m.error ? String(m.error).replace(/"/g, "&quot;") : ""}">unknown</dd>`;
+    return `<div class="tile"><dt>${label}</dt>${body}</div>`;
+  }
+
+  const buttons = {
+    drift: document.getElementById("run-drift"),
+    load: document.getElementById("run-load")
+  };
+  let running = null;
+
+  async function refresh() {
+    let s;
+    try {
+      s = await (await fetch("/api/status", {cache: "no-store"})).json();
+    } catch {
+      document.getElementById("freshness").textContent = "Cannot reach the dashboard's own API.";
+      return;
+    }
+
+    const bounds = (s.min_replicas && s.min_replicas.value !== null && s.min_replicas.value !== undefined)
+      ? `authorised ${s.min_replicas.value}–${s.max_replicas.value}` : "";
+
+    document.getElementById("tiles").innerHTML = [
+      tile("Reserved / month", s.reserved_usd_per_month, usd),
+      tile("Actual / month", s.actual_usd_per_month, usd),
+      tile("Waste / month", s.waste_usd_per_month, usd),
+      tile("Utilisation", s.utilisation_percent, v => v.toFixed(1) + "%"),
+      tile("Worker replicas", s.replicas, num, bounds),
+      tile("Jobs queued", s.queue_depth, num)
+    ].join("");
+
+    const apps = document.getElementById("apps");
+    if (s.apps_error) {
+      apps.innerHTML = `<li class="bad">cannot list applications</li>`;
+    } else if (!s.apps || !s.apps.length) {
+      apps.innerHTML = `<li>no applications found</li>`;
+    } else {
+      apps.innerHTML = s.apps.map(a => {
+        const ok = a.health === "Healthy" && a.sync === "Synced";
+        const cls = ok ? "ok" : "bad";
+        const state = ok ? "healthy" : `${a.health || "?"} / ${a.sync || "?"}`;
+        return `<li class="${cls}">${a.name} · ${state}</li>`;
+      }).join("");
+    }
+
+    const age = s.cost_age_seconds;
+    const fresh = document.getElementById("freshness");
+    if (age && age.value !== null && age.value !== undefined) {
+      fresh.textContent = age.value > 120
+        ? `Cost figures are ${Math.round(age.value / 60)} minutes old — the exporter may have stopped.`
+        : `Cost figures updated ${Math.round(age.value)} seconds ago.`;
+    } else {
+      fresh.textContent = "Cost figures unavailable — showing no number rather than a zero.";
+    }
+
+    // Reflect a run started in another tab, so two reviewers don't fight over the buttons.
+    if (!running) {
+      for (const [name, btn] of Object.entries(buttons)) {
+        btn.disabled = !!s.running && s.running !== name;
+      }
+    }
+  }
+
+  function append(log, ev) {
+    const level = ev.level === "pass" ? "pass" : ev.level === "fail" ? "fail" : "info";
+    const mark = level === "pass" ? "✓" : level === "fail" ? "✕" : "·";
+    const line = document.createElement("div");
+    line.className = `line ${level}`;
+    const markEl = document.createElement("span");
+    markEl.className = "mark";
+    markEl.textContent = mark;
+    const textEl = document.createElement("span");
+    textEl.textContent = ev.message;
+    line.append(markEl, textEl);
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  // The run streams as server-sent events on the POST response. EventSource only speaks
+  // GET, so the body is read directly — which also means closing the tab cancels the run
+  // server-side instead of leaving it polling into a dead socket.
+  async function run(name) {
+    if (running) return;
+    running = name;
+    const log = document.getElementById(`log-${name}`);
+    log.innerHTML = "";
+    Object.values(buttons).forEach(b => b.disabled = true);
+    const label = buttons[name].textContent;
+    buttons[name].textContent = "Running…";
+
+    try {
+      const resp = await fetch(`/api/demo/${name}`, {method: "POST"});
+      if (!resp.ok) {
+        append(log, {level: "fail", message: (await resp.text()).trim() || `request failed (${resp.status})`});
+        return;
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop();
+        for (const chunk of chunks) {
+          const line = chunk.split("\n").find(l => l.startsWith("data: "));
+          if (!line) continue;
+          try { append(log, JSON.parse(line.slice(6))); } catch {}
+        }
+      }
+    } catch (err) {
+      append(log, {level: "fail", message: `Lost the connection: ${err.message}`});
+    } finally {
+      running = null;
+      Object.values(buttons).forEach(b => b.disabled = false);
+      buttons[name].textContent = label;
+      refresh();
+    }
+  }
+
+  buttons.drift.addEventListener("click", () => run("drift"));
+  buttons.load.addEventListener("click", () => run("load"));
+
+  refresh();
+  setInterval(refresh, 5000);
+})();
+</script>

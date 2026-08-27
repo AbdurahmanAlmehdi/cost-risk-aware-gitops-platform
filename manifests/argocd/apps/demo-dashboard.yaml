@@ -1,0 +1,34 @@
+# The demonstration dashboard.
+#
+# Wave 1, before the edge stack at wave 2: Caddy routes gitops.abdurahman.ly straight at
+# this Service, so bringing the router up first would serve a 502 at the one hostname a
+# reviewer is actually given.
+#
+# CreateNamespace is set even though the edge application also declares that namespace,
+# because at wave 1 the edge application has not synced yet. The namespace it creates here
+# is plain; the labelled version — including the restricted pod-security enforcement —
+# arrives with the edge application a wave later and is applied over it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-dashboard
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
+    targetRevision: main
+    path: manifests/apps/demo-dashboard
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: edge
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
