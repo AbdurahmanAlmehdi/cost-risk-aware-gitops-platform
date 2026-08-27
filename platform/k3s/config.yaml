@@ -1,0 +1,22 @@
+# k3s substrate configuration for the review host — the counterpart to
+# platform/kind/cluster.yaml.
+#
+# Install to /etc/rancher/k3s/config.yaml BEFORE installing ArgoCD, then restart k3s:
+#
+#     sudo install -m 600 platform/k3s/config.yaml /etc/rancher/k3s/config.yaml
+#     sudo systemctl restart k3s
+#
+# k3s reconciles its bundled addons from /var/lib/rancher/k3s/server/manifests/. Disabling
+# one here makes k3s delete the objects it created for it, which is what allows the
+# platform's own declaration to own them cleanly.
+disable:
+  # Traefik: the platform routes through Caddy behind a Cloudflare tunnel (see the edge
+  # stack), so a second ingress controller would bind ports for nothing.
+  - traefik
+
+  # metrics-server: declared by the platform in manifests/argocd/apps/metrics-server.yaml
+  # so kind and k3s run the identical component. Leaving k3s's copy enabled makes two
+  # controllers own kube-system/metrics-server, the merged Service selector matches no
+  # pods, and the resulting Available=False APIService blocks namespace deletion across
+  # the whole cluster. See docs/adr/0006-the-platform-owns-metrics-server-on-every-substrate.md.
+  - metrics-server

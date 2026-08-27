@@ -8,6 +8,19 @@
 #
 # Prometheus does not substitute for it. Prometheus scrapes cAdvisor for dashboards; the
 # HPA reads metrics.k8s.io, which only this serves.
+#
+# On k3s this app REQUIRES that the bundled addon be disabled first, in
+# /etc/rancher/k3s/config.yaml:
+#
+#     disable: [traefik, metrics-server]
+#
+# k3s ships its own metrics-server, and with both enabled two controllers own
+# kube-system/metrics-server: k3s owns the Deployment, this owns the Service, and the
+# merged selector matches no pods. The Service loses its endpoints while the Deployment
+# still reads 1/1 Running, so it looks healthy. The APIService then goes Available=False,
+# and the namespace controller will not finalize ANY namespace while an API group cannot
+# be enumerated — every namespace deletion in the cluster hangs. See
+# docs/adr/0006-the-platform-owns-metrics-server-on-every-substrate.md.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
