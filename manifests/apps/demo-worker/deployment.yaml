@@ -15,7 +15,7 @@ metadata:
 spec:
   # Baseline only. Once M5 is installed its ScaledObject owns this field, and the value
   # here becomes the count the cluster returns to when demand disappears.
-  replicas: 1
+  replicas: 8
   selector:
     matchLabels:
       app.kubernetes.io/name: demo-worker
@@ -72,16 +72,10 @@ spec:
               # rate this is roughly $11.50/month per replica, which is large enough
               # that a scale-up is clearly visible on the cost dashboard and in a
               # pull-request cost delta.
-              cpu: 500m
+              cpu: 2000m
               memory: 64Mi
             limits:
               memory: 128Mi
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 3
-            periodSeconds: 10
           # No readiness probe: the worker pulls work rather than receiving it, so it
           # is never in a Service's endpoints and readiness would have no consumer.
           securityContext:
