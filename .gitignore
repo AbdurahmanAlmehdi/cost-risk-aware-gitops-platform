@@ -19,3 +19,6 @@ kubeconfig
 .DS_Store
 .idea/
 .vscode/
+
+# wrangler local state
+.wrangler/

@@ -71,9 +71,24 @@ half-finished deployment explains itself rather than failing blankly.
 ### 3. Put Access in front of it
 
 **This step is not optional.** Without it the URL is a public button that starts and stops
-a billable machine. Add a self-hosted Access application for the Worker's hostname and
-point its policy at the existing `gitops-platform reviewers` group, so the same people who
-can see the dashboards can also wake them, and removing someone removes both at once.
+a billable machine.
+
+The Worker answers on `power.abdurahman.ly`, with a self-hosted Access application in
+front pointed at the same `gitops-platform reviewers` group as the three demonstration
+hostnames. One membership change covers all four, and removing somebody removes all four.
+
+Two details are worth stating, because getting either wrong reopens the hole:
+
+`workers_dev = false` in `wrangler.toml` is a security control, not a preference. A Worker
+deployed with the default settings is also published at `<name>.<subdomain>.workers.dev`,
+and nothing authenticates that address. Access binds to a hostname, so gating the custom
+domain leaves the workers.dev copy of the same Worker serving the same buttons to anyone
+who knows the name. That is exactly what happened during setup here: the custom domain was
+gated correctly while the default URL answered every request.
+
+Access must be attached to the hostname **before** the AWS secrets are set. Until those
+secrets exist the Worker is inert and says so, which makes the ordering safe: an exposed
+but unconfigured page can do nothing.
 
 ## What it looks like from a phone
 
