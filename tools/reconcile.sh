@@ -53,7 +53,9 @@ for w in json.load(open('/tmp/gate-price.json'))['workloads']:
     # The workload kind is deliberately not part of the key: a Deployment and the
     # StatefulSet that replaced it are the same workload from a budgeting point of view.
     if w.get('namespace') and w.get('name'):
-        predicted[(w['namespace'], w['name'])] = w['monthly_usd']
+        # The whole workload is kept, not just monthly_usd: an autoscaled one is priced at
+        # its ceiling, and reconciling it needs the floor as well. See the loop below.
+        predicted[(w['namespace'], w['name'])] = w
 
 live = json.load(open('/tmp/live-cost.json'))
 if live.get('status') != 'success':
@@ -79,6 +81,7 @@ for key in sorted(set(predicted) | set(measured)):
     p, m = predicted.get(key), measured.get(key)
     label = f"{ns}/{name}"
 
+    p_usd = p['monthly_usd'] if p is not None else None
     if p is None:
         # Running but not described by any manifest the gate can see. Either deployed
         # outside GitOps, or delivered from a Helm chart the gate cannot render. Reported
@@ -91,16 +94,40 @@ for key in sorted(set(predicted) | set(measured)):
         # M4 cannot see it running. Either it never deployed, or, the subtler case -
         # its cost is being attributed under the wrong labels, which is indistinguishable
         # from absent when you look workload by workload.
-        print(f"{label:<38} {p:>13.2f} {'-':>13} {'MISSING':>9}")
+        print(f"{label:<38} {p_usd:>13.2f} {'-':>13} {'MISSING':>9}")
         missing.append(label)
         continue
 
     compared += 1
-    diff = abs(p - m) / max(p, 0.0001)
+
+    if p.get('autoscaled'):
+        # An autoscaled workload has no single true cost. The gate deliberately prices it
+        # at the ceiling, what the change *authorises*, while M4 measures wherever demand
+        # has currently put it. Comparing the measurement against the ceiling therefore
+        # fails every idle scaler by construction: demo-worker sits at min=1 of max=6 with
+        # no load, so the ceiling is exactly 6x the largest figure M4 could report, and the
+        # test called a correctly-working platform an 83% cost discrepancy.
+        #
+        # What Git actually promises for these is a band, so the band is what is checked.
+        # A workload outside it is still a real finding: the cluster is running something
+        # the merged manifest never authorised.
+        floor = p.get('floor_monthly_usd', p_usd)
+        low, high = floor * (1 - tolerance), p_usd * (1 + tolerance)
+        shown = f"{floor:.2f}-{p_usd:.2f}"
+        if low <= m <= high:
+            print(f"{label:<38} {shown:>13} {m:>13.2f} {'ok':>9}")
+        else:
+            nearest = floor if m < low else p_usd
+            diff = abs(nearest - m) / max(nearest, 0.0001)
+            failures.append((label, f"a band of ${shown}", m, diff))
+            print(f"{label:<38} {shown:>13} {m:>13.2f} {'OUTSIDE':>9}")
+        continue
+
+    diff = abs(p_usd - m) / max(p_usd, 0.0001)
     flag = "ok" if diff <= tolerance else "MISMATCH"
     if diff > tolerance:
-        failures.append((label, p, m, diff))
-    print(f"{label:<38} {p:>13.2f} {m:>13.2f} {flag:>9}")
+        failures.append((label, f"${p_usd:.2f}", m, diff))
+    print(f"{label:<38} {p_usd:>13.2f} {m:>13.2f} {flag:>9}")
 
 print()
 if not compared:
@@ -118,8 +145,8 @@ if missing:
 
 if failures:
     print(f"FAIL: {len(failures)} workload(s) disagree by more than {tolerance:.0%}:")
-    for label, p, m, diff in failures:
-        print(f"  {label}: M2 predicted ${p:.2f}, M4 measured ${m:.2f} ({diff:.1%} apart)")
+    for label, desc, m, diff in failures:
+        print(f"  {label}: M2 predicted {desc}, M4 measured ${m:.2f} ({diff:.1%} apart)")
     print()
     print("A gap here is a finding, not a bug in the test: the cluster is reserving")
     print("something different from what Git describes.")
