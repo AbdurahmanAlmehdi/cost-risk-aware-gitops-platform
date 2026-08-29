@@ -3,6 +3,13 @@ bin/
 dist/
 *.test
 *.out
+# Compiled binaries take the name of their directory, so `go build ./...` inside a
+# service leaves one next to the source. One reached a commit that way.
+/app/app
+/gate/gate
+/exporter/exporter
+/dashboard/dashboard
+/pricing/pricing
 
 # Local cluster / tooling state
 kubeconfig
