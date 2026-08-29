@@ -7,6 +7,24 @@ name = "gitops-platform-power"
 main = "worker.js"
 compatibility_date = "2026-08-01"
 
+# No workers.dev URL. This is the security control, not a preference.
+#
+# A Worker deployed with the default settings is published at
+# <name>.<subdomain>.workers.dev, and nothing authenticates that address. Access is bound
+# to a hostname, so putting it in front of power.abdurahman.ly leaves the workers.dev copy
+# of the same Worker serving the same buttons to anybody who knows the name. That happened
+# here: the custom domain was gated correctly while the default URL answered every request.
+#
+# The route was disabled through the API afterwards, but a later `wrangler deploy` would
+# have re-enabled it silently. This line is what makes the fix survive the next deploy.
+workers_dev = false
+
+# The only way in. Access sits in front of this hostname, pointed at the same reviewers
+# group as the three demonstration hostnames, so one membership change covers all four.
+[[routes]]
+pattern = "power.abdurahman.ly"
+custom_domain = true
+
 # Observability on, so `wrangler tail` shows who pressed which button. The Worker logs the
 # Access-authenticated address with every state change, and that log is the only audit
 # trail for an action that costs money.
