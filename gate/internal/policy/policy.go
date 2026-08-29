@@ -48,7 +48,7 @@ func (v Violation) Ref() string {
 // Result is the outcome of evaluating a manifest set.
 type Result struct {
 	Violations []Violation `json:"violations"`
-	// Errors are rule failures, not rule violations — a policy that could not be
+	// Errors are rule failures, not rule violations, a policy that could not be
 	// evaluated has told us nothing about the manifest, which is a different and more
 	// serious state than a policy that evaluated cleanly.
 	Errors []string `json:"errors,omitempty"`
@@ -119,8 +119,8 @@ var canary = cost.Object{
 // anything.
 //
 // The failure mode this exists for is silent: if the rules and the gate's input contract
-// drift apart — a rule referencing a field that no longer exists, an empty policy
-// directory, a package renamed — every rule matches nothing, no error is raised, and the
+// drift apart, a rule referencing a field that no longer exists, an empty policy
+// directory, a package renamed. Every rule matches nothing, no error is raised, and the
 // gate returns a clean pass for every pull request. A gate that approves everything is
 // indistinguishable from a working gate right up to the moment it matters. Evaluating a
 // manifest that must be rejected turns that silent failure into a loud one.
@@ -131,7 +131,7 @@ func (e *Engine) selfTest(ctx context.Context) error {
 	}
 	if len(result.Violations) == 0 {
 		return fmt.Errorf("policy self-test produced no violations against a manifest that declares " +
-			"no resources, no probes and no security context. The rules are not matching anything — " +
+			"no resources, no probes and no security context. The rules are not matching anything - " +
 			"most likely the rule set and the gate's input contract have drifted apart, or the " +
 			"policy directory is not the one you think it is. Refusing to run, because in this " +
 			"state the gate would pass every pull request")
@@ -165,8 +165,8 @@ func (e *Engine) Evaluate(ctx context.Context, objects []cost.Object) Result {
 	var result Result
 
 	// Rules see the whole rendered set alongside the object under evaluation. Some
-	// properties are only decidable across objects — whether a Service routes to a
-	// Deployment, whether a workload is covered by a NetworkPolicy — and a rule that
+	// properties are only decidable across objects, whether a Service routes to a
+	// Deployment, whether a workload is covered by a NetworkPolicy, and a rule that
 	// can only see one manifest has to guess at them. Guessing produces false
 	// positives on correct manifests, which is the fastest way to get a gate disabled.
 	peers := make([]map[string]any, 0, len(objects))

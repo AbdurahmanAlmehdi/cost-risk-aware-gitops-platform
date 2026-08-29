@@ -5,7 +5,7 @@ package main
 // never as zero.
 //
 // This is not pedantry. A cost tile reading "$0.00" when the exporter has stopped says
-// "this costs nothing" — the single most misleading thing a cost dashboard can display,
+// "this costs nothing", the single most misleading thing a cost dashboard can display,
 // and precisely the failure M4's freshness metric exists to catch. The distinction lives
 // in the JSON contract, so that is where it is tested.
 
@@ -35,7 +35,7 @@ func TestUnknownMetricIsNotZero(t *testing.T) {
 }
 
 func TestMeasuredZeroIsPreserved(t *testing.T) {
-	// The converse matters too: a genuine zero — an empty queue — must survive as a
+	// The converse matters too: a genuine zero, an empty queue, must survive as a
 	// number, or a drained backlog would render as "unknown" and the load proof's most
 	// important moment would disappear.
 	raw, err := json.Marshal(measured(0))

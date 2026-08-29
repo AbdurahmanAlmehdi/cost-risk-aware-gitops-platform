@@ -4,7 +4,7 @@
 # This is the platform's central claim, tested rather than asserted. M2 prices manifests in
 # Git before a change can merge; M4 prices what the cluster actually reserved after it
 # deployed. Both read the same rate table through the same code, so for reserved capacity
-# the two figures should agree — and where they do not, something real has happened:
+# the two figures should agree, and where they do not, something real has happened:
 # a workload was scaled outside Git, a manifest never reached the cluster, or an assumption
 # in the estimate does not hold.
 #
@@ -12,7 +12,7 @@
 # merely share a currency symbol.
 set -euo pipefail
 
-TOLERANCE=${TOLERANCE:-0.02}   # 2% — allows for rounding, not for disagreement
+TOLERANCE=${TOLERANCE:-0.02}   # 2%, allows for rounding, not for disagreement
 PROM_PORT=${PROM_PORT:-9090}
 PROM_SVC=svc/observability-kube-prometh-prometheus
 
@@ -80,18 +80,18 @@ for key in sorted(set(predicted) | set(measured)):
     label = f"{ns}/{name}"
 
     if p is None:
-        # Running but not described by any manifest the gate can see — either deployed
+        # Running but not described by any manifest the gate can see. Either deployed
         # outside GitOps, or delivered from a Helm chart the gate cannot render. Reported
         # rather than failed: ArgoCD and the monitoring stack are legitimately in this
         # category.
-        print(f"{label:<38} {'—':>13} {m:>13.2f} {'not in Git':>9}")
+        print(f"{label:<38} {'-':>13} {m:>13.2f} {'not in Git':>9}")
         continue
     if m is None:
         # This one IS a failure. Git says the workload exists and the gate priced it, but
-        # M4 cannot see it running. Either it never deployed, or — the subtler case —
+        # M4 cannot see it running. Either it never deployed, or, the subtler case -
         # its cost is being attributed under the wrong labels, which is indistinguishable
         # from absent when you look workload by workload.
-        print(f"{label:<38} {p:>13.2f} {'—':>13} {'MISSING':>9}")
+        print(f"{label:<38} {p:>13.2f} {'-':>13} {'MISSING':>9}")
         missing.append(label)
         continue
 
@@ -113,7 +113,7 @@ if missing:
         print(f"  {label}")
     print()
     print("Either they never deployed, or their cost is being attributed under different")
-    print("labels than expected — check honorLabels on the exporter's PodMonitor.")
+    print("labels than expected, check honorLabels on the exporter's PodMonitor.")
     raise SystemExit(1)
 
 if failures:

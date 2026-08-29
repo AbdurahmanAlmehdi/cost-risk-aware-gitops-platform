@@ -1,4 +1,4 @@
-# M4 — cost exporter image.
+# M4, cost exporter image.
 #
 # Built from the repository root rather than from exporter/, because the exporter depends
 # on the shared pricing module through a local replace directive. A build context of

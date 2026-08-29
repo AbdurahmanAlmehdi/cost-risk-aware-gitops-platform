@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Prove that Git is the authority on cluster state, not merely its usual source.
 #
-# The test edits a live resource directly — the way an engineer would during an incident —
+# The test edits a live resource directly, the way an engineer would during an incident -
 # and asserts the platform reverts it without anyone intervening. Until that is
 # demonstrated, "GitOps" describes how the cluster was populated, not how it is governed:
 # a cluster that accepts manual edits has two sources of truth and no way to tell which
@@ -44,7 +44,7 @@ echo "--> introducing drift: setting the limit to $DRIFTED_VALUE directly on the
 #
 # A re-read is a race against the very thing being tested. Self-heal here reverts in about
 # a second, so the follow-up GET returns the restored value and the test concludes the patch
-# never applied — reporting FAIL on a platform that is working perfectly, and faster than
+# never applied, reporting FAIL on a platform that is working perfectly, and faster than
 # expected at that. It went unnoticed while the only cluster was a laptop kind cluster,
 # where reversion took ~5s and the race was comfortably won.
 #
@@ -59,7 +59,7 @@ if [ "$APPLIED" != "$DRIFTED_VALUE" ]; then
   echo "      The API server returned '$APPLIED' rather than '$DRIFTED_VALUE'."
   exit 1
 fi
-echo "    drift applied — the cluster now disagrees with Git"
+echo "    drift applied, the cluster now disagrees with Git"
 
 echo "--> waiting for self-heal to revert it (up to ${TIMEOUT}s)"
 elapsed=0

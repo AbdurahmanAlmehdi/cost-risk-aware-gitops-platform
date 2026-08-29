@@ -12,7 +12,7 @@ import (
 )
 
 // policyDir is the real rule set, not a fixture copy. These tests assert against the
-// policies the platform actually enforces — a copy would drift and start passing while
+// policies the platform actually enforces, a copy would drift and start passing while
 // production rules were broken.
 func policyDir(t *testing.T) string {
 	t.Helper()
@@ -110,7 +110,7 @@ func TestMissingLivenessProbeIsBlocked(t *testing.T) {
 
 // TestReadinessRequiredOnlyWhenRouted is the rule that motivated giving policies access
 // to the whole manifest set. The same workload must pass alone and fail once a Service
-// selects it — a per-object rule cannot tell the two cases apart.
+// selects it, a per-object rule cannot tell the two cases apart.
 func TestReadinessRequiredOnlyWhenRouted(t *testing.T) {
 	worker := mustDecode(t, compliantWorker)
 

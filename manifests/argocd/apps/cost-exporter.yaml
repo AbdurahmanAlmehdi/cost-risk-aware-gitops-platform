@@ -1,4 +1,4 @@
-# M4 — cost attribution, delivered like any other workload.
+# M4, cost attribution, delivered like any other workload.
 #
 # Wave 1: it depends on Prometheus (wave 0) both to query and to be scraped by.
 apiVersion: argoproj.io/v1alpha1

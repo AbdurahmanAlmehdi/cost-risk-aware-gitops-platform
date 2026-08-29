@@ -10,7 +10,7 @@ type Delta struct {
 
 	// PercentIncrease is only meaningful when there is something to compare against.
 	// A manifest set that did not exist before has no baseline, so "a 100% increase"
-	// and "an infinite increase" are equally true and equally useless — the gate says
+	// and "an infinite increase" are equally true and equally useless, the gate says
 	// so explicitly rather than reporting a number that reads as precise.
 	PercentIncrease float64 `json:"percent_increase"`
 	HasPercentBasis bool    `json:"has_percent_basis"`
@@ -19,7 +19,7 @@ type Delta struct {
 	// rather than taken on trust.
 	EstateBaselineMonthlyUSD float64 `json:"estate_baseline_monthly_usd"`
 
-	// Committed* track the floor — spend the change commits to unconditionally. The
+	// Committed* track the floor, spend the change commits to unconditionally. The
 	// fields above track the ceiling, which is spend it merely authorises. The gate
 	// judges them against different budgets, because they are different promises.
 	CommittedBaselineUSD  float64 `json:"committed_baseline_monthly_usd"`
@@ -73,7 +73,7 @@ func Compare(base, head Estimate, estateBaseline float64) Delta {
 		d.HasPercentBasis = true
 	}
 
-	// The displayed baseline stays scoped to what this change touches — those two figures
+	// The displayed baseline stays scoped to what this change touches, those two figures
 	// are "what these workloads cost before and after", and replacing the before-figure
 	// with an estate total would make the pair nonsense: a $79 baseline beside a $7
 	// projection reads as though costs had collapsed.

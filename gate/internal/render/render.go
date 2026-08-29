@@ -4,7 +4,7 @@
 // It renders through kustomize rather than reading the YAML files directly, because M3
 // (ArgoCD) renders through kustomize. If the gate parsed deployment.yaml while ArgoCD
 // applied a kustomize overlay, the two would diverge the moment an overlay changed
-// anything — and the LLD's central contract is that what M2 evaluates is byte-identical
+// anything, and the LLD's central contract is that what M2 evaluates is byte-identical
 // to what M3 deploys. Reading raw files would quietly break that guarantee in exactly
 // the cases where it matters most.
 package render
@@ -68,7 +68,7 @@ func (r *Repo) ChangedFiles(base, head, pathspec string) ([]string, error) {
 //
 // The gate compares commits, which is exactly right in CI and a trap locally: running it
 // against a dirty working tree silently reports "nothing to evaluate" and exits 0. That
-// false green is the worst possible local behaviour — it tells an author their change is
+// false green is the worst possible local behaviour. It tells an author their change is
 // fine before the change exists as far as the gate is concerned.
 func (r *Repo) UncommittedChanges(pathspec string) ([]string, error) {
 	out, err := r.git("status", "--porcelain", "--", pathspec)
@@ -101,7 +101,7 @@ func (r *Repo) Worktree(ref string) (dir string, cleanup func(), err error) {
 		os.RemoveAll(tmp)
 		return "", nil, fmt.Errorf("materialise ref %s: %w\n\n"+
 			"If this runs in CI, the checkout is probably shallow. The gate needs full history "+
-			"to reach the base commit — set `fetch-depth: 0` on actions/checkout.", ref, err)
+			"to reach the base commit, set `fetch-depth: 0` on actions/checkout.", ref, err)
 	}
 
 	cleanup = func() {
@@ -129,7 +129,7 @@ func (r *Repo) git(args ...string) (string, error) {
 //
 // A change to any file inside a kustomize build root can alter every object that root
 // produces, so the unit of evaluation is the root, not the file. Walking up from each
-// changed file — rather than rendering everything under manifests/ — keeps the gate's
+// changed file, rather than rendering everything under manifests/, keeps the gate's
 // report scoped to what the pull request actually touched.
 func Roots(treeDir string, changedFiles []string, manifestsPath string) ([]string, error) {
 	seen := make(map[string]struct{})
@@ -172,7 +172,7 @@ func Roots(treeDir string, changedFiles []string, manifestsPath string) ([]strin
 //
 // Used when a change has cluster-wide cost consequences that the changed-file list cannot
 // express. Editing a rate in the pricing table touches one file in one directory, but it
-// re-prices every workload in the repository — evaluating only the root that happens to
+// re-prices every workload in the repository, evaluating only the root that happens to
 // contain the table would report a trivial delta for a change that alters the entire bill.
 func AllRoots(treeDir, manifestsPath string) ([]string, error) {
 	manifestsAbs := filepath.Clean(filepath.Join(treeDir, manifestsPath))

@@ -1,4 +1,4 @@
-# M1 workload — the consumer tier, and the target of M5's autoscaling.
+# M1 workload, the consumer tier, and the target of M5's autoscaling.
 #
 # This is the expensive workload: its replica count is what KEDA changes, its CPU is
 # what M4 prices, and the correlation between the two is what M7 plots. Everything
@@ -29,7 +29,7 @@ spec:
       # Prefer the application node pool, but do not require it.
       #
       # Isolation from the platform tier is enforced by that node's NoSchedule taint,
-      # which these pods do not tolerate — this label was only ever a hint about where
+      # which these pods do not tolerate. This label was only ever a hint about where
       # they belong. As a hard nodeSelector it also made single-node clusters impossible,
       # since one node cannot carry two values of the same label key, so a review host or
       # CI runner could never schedule the application at all.
@@ -80,7 +80,7 @@ spec:
               # priced for.
               #
               # Without this the worker was capped on memory but unbounded on CPU, and its
-              # jobs are real work — work.Do() runs sha256 until the deadline rather than
+              # jobs are real work, work.Do() runs sha256 until the deadline rather than
               # sleeping, deliberately, so the CPU trigger has something to read. Six of
               # them on a four-core node therefore consumed every core the scheduler would
               # give them, and Prometheus and Grafana were starved alongside everything

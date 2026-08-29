@@ -4,7 +4,7 @@ package main
 //
 // Both follow the same contract: stream what is happening as it happens, assert the claim
 // at the end, and return an error if the claim did not hold. The browser renders whatever
-// arrives, so a failure is as visible as a success — which is the point. A demonstration
+// arrives, so a failure is as visible as a success, which is the point. A demonstration
 // that can only succeed is a slideshow.
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 // -----------------------------------------------------------------------------
-// Drift — Git governs the cluster
+// Drift. Git governs the cluster
 // -----------------------------------------------------------------------------
 
 func (s *server) runDrift(ctx context.Context, emit emitFunc) error {
@@ -27,7 +27,7 @@ func (s *server) runDrift(ctx context.Context, emit emitFunc) error {
 	}
 	declared, index, ok := dep.memoryLimit(apiContainer)
 	if !ok || declared == "" {
-		return fmt.Errorf("no memory limit on container %q — is the workload deployed?", apiContainer)
+		return fmt.Errorf("no memory limit on container %q, is the workload deployed?", apiContainer)
 	}
 	emit(event{Phase: phase, Level: "info",
 		Message: fmt.Sprintf("Git declares a memory limit of %s.", declared),
@@ -39,7 +39,7 @@ func (s *server) runDrift(ctx context.Context, emit emitFunc) error {
 		return fmt.Errorf("the declared value is already %s, so the test would prove nothing", driftedMemory)
 	}
 
-	info(emit, phase, "Editing the live cluster directly, setting the limit to %s — the way an engineer would at 3am.", driftedMemory)
+	info(emit, phase, "Editing the live cluster directly, setting the limit to %s, the way an engineer would at 3am.", driftedMemory)
 	if err := s.kube.patchMemoryLimit(ctx, demoNS, apiDeployment, index, driftedMemory); err != nil {
 		return fmt.Errorf("could not apply the drift: %w", err)
 	}
@@ -53,7 +53,7 @@ func (s *server) runDrift(ctx context.Context, emit emitFunc) error {
 		return fmt.Errorf("the drift did not apply (limit reads %q), so there is nothing to detect", now)
 	}
 	emit(event{Phase: phase, Level: "info",
-		Message: "Drift applied — the cluster now disagrees with Git. Nobody is going to fix this by hand.",
+		Message: "Drift applied, the cluster now disagrees with Git. Nobody is going to fix this by hand.",
 		Metrics: map[string]any{"current": driftedMemory}})
 
 	info(emit, phase, "Waiting for the platform to revert it, unattended (up to %ds)…", int(driftTimeout.Seconds()))
@@ -79,16 +79,16 @@ func (s *server) runDrift(ctx context.Context, emit emitFunc) error {
 			return nil
 		}
 		emit(event{Phase: phase, Level: "info",
-			Message: fmt.Sprintf("t+%ds — still %s", elapsed, current),
+			Message: fmt.Sprintf("t+%ds, still %s", elapsed, current),
 			Metrics: map[string]any{"elapsed_seconds": elapsed, "current": current}})
 		if time.Since(started) > driftTimeout {
-			return fmt.Errorf("the manual change survived %ds — self-heal is not reverting drift", int(driftTimeout.Seconds()))
+			return fmt.Errorf("the manual change survived %ds, self-heal is not reverting drift", int(driftTimeout.Seconds()))
 		}
 	}
 }
 
 // -----------------------------------------------------------------------------
-// Load — demand drives replicas, and the backlog actually clears
+// Load, demand drives replicas, and the backlog actually clears
 // -----------------------------------------------------------------------------
 
 func (s *server) runLoad(ctx context.Context, emit emitFunc) error {
@@ -101,7 +101,7 @@ func (s *server) runLoad(ctx context.Context, emit emitFunc) error {
 	info(emit, phase, "Worker tier is authorised to run between %d and %d replicas.", minR, maxR)
 
 	// A bounds violation at any point is a failure, so replicas are checked on every poll
-	// rather than only at the end — a transient overshoot is exactly the bug this catches.
+	// rather than only at the end, a transient overshoot is exactly the bug this catches.
 	assertBounds := func(r int) error {
 		if r > maxR {
 			return fmt.Errorf("replicas reached %d, above the authorised maximum of %d", r, maxR)
@@ -121,7 +121,7 @@ func (s *server) runLoad(ctx context.Context, emit emitFunc) error {
 		Message: fmt.Sprintf("Starting at %d replica(s).", startReplicas),
 		Metrics: map[string]any{"replicas": startReplicas, "min": minR, "max": maxR}})
 
-	info(emit, phase, "Putting %d jobs on the queue. Nothing is being reconfigured — the system reacts on its own.", loadJobs)
+	info(emit, phase, "Putting %d jobs on the queue. Nothing is being reconfigured, the system reacts on its own.", loadJobs)
 	if err := s.api.enqueue(ctx, loadJobs, loadJobMS); err != nil {
 		return fmt.Errorf("could not reach the demo API to enqueue work: %w", err)
 	}
@@ -149,7 +149,7 @@ func (s *server) runLoad(ctx context.Context, emit emitFunc) error {
 				depthValue = nil
 			}
 			emit(event{Phase: phase, Level: "info",
-				Message: fmt.Sprintf("t+%ds — %d replica(s), %s job(s) queued",
+				Message: fmt.Sprintf("t+%ds - %d replica(s), %s job(s) queued",
 					int(time.Since(started).Seconds()), r, formatDepth(depth, depthErr)),
 				Metrics: map[string]any{"replicas": r, "queue_depth": depthValue, "stage": stage}})
 			if depthErr == nil && done(r, depth) {
@@ -178,7 +178,7 @@ func (s *server) runLoad(ctx context.Context, emit emitFunc) error {
 	// The part that matters most. Replica count alone proves only that the autoscaler
 	// acted; a workload can scale up and still fall behind. The queue draining is what
 	// shows the action had the intended effect.
-	info(emit, phase, "Waiting for the backlog to drain — this is what proves the extra replicas did the work.")
+	info(emit, phase, "Waiting for the backlog to drain. This is what proves the extra replicas did the work.")
 	drainPeak, err := poll(drainTimeout, "drain", func(_ int, depth int64) bool { return depth == 0 })
 	if err != nil {
 		return fmt.Errorf("the backlog did not clear: %w", err)

@@ -21,15 +21,15 @@ MARKER=/var/log/platform-activity
 # Touching a missing marker fixed the absent case but not the stale one, and the stale case
 # is the normal one: the marker lives on the persistent disk, so it survives a stop. After
 # the host sat stopped for two days, the marker was two days old, and the first cron tick
-# after boot read "idle for 2880m" and powered the machine off — again within ten minutes,
+# after boot read "idle for 2880m" and powered the machine off, again within ten minutes,
 # and again looking like something other than what it was. Whatever the marker says, the
 # machine cannot have been idle for longer than it has been running.
 UPTIME_MIN=$(( $(cut -d. -f1 /proc/uptime) / 60 ))
 MARKER_MIN=$(( ( $(date +%s) - $(stat -c %Y "$MARKER") ) / 60 ))
 LAST=$(( MARKER_MIN < UPTIME_MIN ? MARKER_MIN : UPTIME_MIN ))
 
-# `who` only reports sessions that allocate a TTY. An SSH command run without a PTY — which
-# is how every scripted deploy connects — and a port-forward (`ssh -N`) both leave no utmp
+# `who` only reports sessions that allocate a TTY. An SSH command run without a PTY, which
+# is how every scripted deploy connects, and a port-forward (`ssh -N`) both leave no utmp
 # entry, so `who` showed an empty machine while it was being actively worked on. Counting
 # established connections on port 22 catches both.
 if who | grep -q . \
@@ -48,7 +48,7 @@ fi
 #
 # Caddy logs every request it serves, so ask it. The dashboard's own /api/status poll is
 # excluded deliberately: it fires roughly once a minute for as long as a tab is open, so
-# counting it would mean a single forgotten tab keeps the instance running — and billing —
+# counting it would mean a single forgotten tab keeps the instance running, and billing -
 # indefinitely. Excluding it, a passive tab lets the host idle out normally while any real
 # interaction, on any of the three hostnames, holds it up.
 # Filter, then test for a remainder. The obvious `grep -qv` is not written here on purpose:

@@ -1,4 +1,4 @@
-# Network policy rules — the "no overly permissive network settings" half of the gate.
+# Network policy rules, the "no overly permissive network settings" half of the gate.
 #
 # M6 enforces network isolation in the cluster, but the policies themselves are manifests
 # in Git and pass through this same gate (LLD §9.4: the platform governs changes to itself
@@ -11,7 +11,7 @@ is_network_policy if {
 }
 
 # An ingress rule with an empty `from` admits every pod in the cluster. It looks
-# restrictive — it names ports, it selects pods — while allowing exactly what the
+# restrictive. It names ports, it selects pods, while allowing exactly what the
 # default-deny baseline was put in place to prevent.
 violation contains v if {
 	is_network_policy

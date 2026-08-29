@@ -23,7 +23,7 @@ Three things that are normally separate concerns are treated here as one system:
 
 ## Why one platform instead of three projects
 
-This design merges three earlier proposals — a FinOps CI/CD pipeline, a self-healing and
+This design merges three earlier proposals, a FinOps CI/CD pipeline, a self-healing and
 autoscaling environment, and a zero-trust network. They are not merely co-located here.
 Each supplies something the others need in order to be more than a demo:
 
@@ -34,12 +34,12 @@ Each supplies something the others need in order to be more than a demo:
 The join is the pricing table. `manifests/apps/cost-exporter/pricing.yaml` is read by both the
 pre-merge estimate (M2) and the live cost exporter (M4), so prediction and measurement are
 expressed in the same units at the same rates and can be placed on one axis and compared.
-Two tables would produce two numbers that look comparable and are not — and that
+Two tables would produce two numbers that look comparable and are not, and that
 comparison is the thing none of the three original proposals could make on its own.
 
 ## Architecture
 
-Eight modules across four planes. What each one is *allowed* to do is deliberately narrow —
+Eight modules across four planes. What each one is *allowed* to do is deliberately narrow -
 the sum of those boundaries is what makes the central claim defensible.
 
 | Module | Plane | Authority |
@@ -55,7 +55,7 @@ the sum of those boundaries is what makes the central claim defensible.
 
 The failure philosophy splits along the same line:
 
-- **The control plane fails safe.** M2 never merges on uncertainty — a sub-gate that
+- **The control plane fails safe.** M2 never merges on uncertainty, a sub-gate that
   errors is `inconclusive`, which blocks exactly like a failure. M6 fails closed.
 - **The data and intelligence planes fail soft.** M4, M7 and M8 degrade to gaps and
   fallbacks rather than breaking delivery. M8 can be deleted entirely without affecting
@@ -92,7 +92,7 @@ make bootstrap
 ```
 
 That creates the cluster, installs Calico, and **verifies that NetworkPolicy is actually
-enforced** — not merely accepted. The distinction matters: the API server stores a
+enforced**, not merely accepted. The distinction matters: the API server stores a
 NetworkPolicy happily under a CNI that ignores it, so `kubectl get networkpolicy` proves
 nothing. kind's default CNI does not enforce policy at all, which is why Calico is
 installed at cluster-creation time rather than added later.
@@ -104,7 +104,7 @@ make gitops-bootstrap
 ```
 
 That installs ArgoCD, grants it read access to this repository, and applies the root
-Application — the only object in the platform ever applied by hand. After it, adding a
+Application, the only object in the platform ever applied by hand. After it, adding a
 workload means committing a file.
 
 Run the gate against your working branch:
@@ -123,7 +123,7 @@ It edits a live resource the way an engineer would mid-incident and asserts the 
 reverts it unattended. Until that is demonstrated, a cluster has two sources of truth and
 no way to say which is currently winning.
 
-Check the platform's central claim — that the cost predicted before merge is the cost
+Check the platform's central claim. That the cost predicted before merge is the cost
 actually being reserved:
 
 ```bash
@@ -132,7 +132,7 @@ make reconcile
 
 M2 prices manifests in Git; M4 prices what the cluster reserved. Both read the same rate
 table through the same code, so the two figures are directly comparable. Where they
-disagree, something real has happened — a workload scaled outside Git, a manifest that
+disagree, something real has happened, a workload scaled outside Git, a manifest that
 never landed, or an assumption in the estimate that does not hold.
 
 ```
@@ -153,7 +153,7 @@ Drive demand and watch the platform respond:
 make load-test
 ```
 
-It enqueues 600 jobs, then asserts all four parts of the elasticity claim separately —
+It enqueues 600 jobs, then asserts all four parts of the elasticity claim separately -
 demand rises, replicas follow, **the backlog actually drains**, and bounds are never
 breached. The third is the one that matters: replica count alone proves the autoscaler
 acted, not that the action worked.
@@ -175,15 +175,15 @@ measured **$70.36**. That is the whole argument of the project in one line.
 
 A `ScaledObject` authorises a spending ceiling while touching no `replicas:` field, so a
 gate that prices the Deployment literally reports the cost of the quietest possible moment.
-Worse, omitting `maxReplicaCount` hands the decision to KEDA's default of **100 replicas**
-— a one-line diff that looks like nothing and authorises roughly $1,170/month here.
+Worse, omitting `maxReplicaCount` hands the decision to KEDA's default of **100 replicas**:
+a one-line diff that looks like nothing and authorises roughly $1,170/month here.
 
 So the gate prices autoscaled workloads at their ceiling, and judges two budgets rather
 than one:
 
-- **Committed spend** — the floor, what the change costs with nothing happening. Judged by
+- **Committed spend**: the floor, what the change costs with nothing happening. Judged by
   the ordinary per-change thresholds.
-- **Authorised burst** — the ceiling an autoscaler permits under load. Judged by its own
+- **Authorised burst**: the ceiling an autoscaler permits under load. Judged by its own
   budget, plus a ratio cap.
 
 They have to be separate. A percentage cap tight enough to catch a careless replica bump
@@ -211,7 +211,7 @@ Some specifics that are load-bearing:
 
 **Manifests are rendered through kustomize, not parsed.** ArgoCD renders through kustomize
 too. Reading `deployment.yaml` directly would let the gate evaluate something different
-from what M3 deploys the moment an overlay is involved — breaking the guarantee that what
+from what M3 deploys the moment an overlay is involved, breaking the guarantee that what
 was approved is what ships.
 
 **The gate never calls the GitHub API.** It reads Git, decides, and prints. The workflow
@@ -219,7 +219,7 @@ delivers the verdict. So a GitHub outage can delay a report but can never turn a
 verdict into a passing one.
 
 **Cost prices requests, not usage.** Requests are what the scheduler reserves and what
-capacity must be planned for. Usage is unknowable before the workload has run — M4 makes
+capacity must be planned for. Usage is unknowable before the workload has run. M4 makes
 that gap visible after deploy rather than the gate pretending to predict it.
 
 **A container with no requests is not free.** It is priced from a declared default and
@@ -305,5 +305,5 @@ Makefile                Every target is idempotent. `make help` lists them.
 The cluster is local. No money is spent. Every figure the platform reports is a *model* of
 what the same workload would cost on a cloud provider, computed from published on-demand
 rates decomposed per resource. The modelling is deterministic and auditable, and the same
-rates are applied to both the prediction and the measurement — which is what makes the
+rates are applied to both the prediction and the measurement, which is what makes the
 comparison between them meaningful, and what the project actually claims.

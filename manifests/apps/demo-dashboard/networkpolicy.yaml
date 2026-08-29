@@ -8,7 +8,7 @@
 #
 # Egress is deliberately NOT constrained here, and the omission is worth stating rather
 # than hiding. The dashboard must reach the Kubernetes API server, whose address is not
-# expressible portably in a NetworkPolicy — it is a node IP on kind and k3s but a public
+# expressible portably in a NetworkPolicy. It is a node IP on kind and k3s but a public
 # endpoint on DOKS, so any ipBlock correct for one is wrong for the other. A rule that is
 # silently wrong would leave the page rendering "unknown" everywhere with no indication
 # why, which is a worse outcome than an unconstrained egress from a pod that already holds

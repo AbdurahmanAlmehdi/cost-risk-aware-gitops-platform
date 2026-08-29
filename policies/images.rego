@@ -1,7 +1,7 @@
 # Image provenance rules.
 #
 # This is the rule that makes the LLD's central contract enforceable: "what M2 evaluates is
-# byte-identical to what M3 deploys". A tag is a mutable pointer — the image behind
+# byte-identical to what M3 deploys". A tag is a mutable pointer, the image behind
 # `:v1.2.3` can be replaced after the gate has approved it, so everything the gate checked
 # would describe an artefact that is no longer the one being deployed. Only a digest makes
 # the approval refer to a specific set of bytes.

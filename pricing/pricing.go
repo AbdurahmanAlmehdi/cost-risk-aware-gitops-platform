@@ -41,7 +41,7 @@ type Rate struct {
 	Unit  string  `json:"unit"`
 	Price float64 `json:"price"`
 	// Flag marks a rate as an assumption that must be surfaced in the report rather
-	// than applied silently — used by the unknown-resource fallback, where pricing a
+	// than applied silently, used by the unknown-resource fallback, where pricing a
 	// dimension the table does not know about is a guess the reader needs to see.
 	Flag bool `json:"flag,omitempty"`
 }
@@ -58,7 +58,7 @@ type Defaults struct {
 
 // MissingRequests is what the gate assumes for a container that declares no requests.
 //
-// A container without requests is not free — it is unbounded, and the scheduler will
+// A container without requests is not free. It is unbounded, and the scheduler will
 // place it anywhere. Pricing it at zero would mean the cheapest possible manifest is
 // also the most dangerous one, and the cost gate would reward exactly the practice the
 // policy gate exists to forbid.

@@ -7,13 +7,13 @@
 
 This platform merges three previously separate project proposals. Many of its choices are
 non-obvious, and several deliberately contradict the tooling named in the original
-proposals. Without a record, those departures look like oversights rather than decisions —
+proposals. Without a record, those departures look like oversights rather than decisions -
 particularly to a reviewer comparing this work against the original documents.
 
 ## Decision
 
 Every decision that is expensive to reverse, or that departs from an original proposal, is
-recorded here as a short numbered document: context, decision, consequences — including the
+recorded here as a short numbered document: context, decision, consequences, including the
 consequences we dislike.
 
 ## Consequences

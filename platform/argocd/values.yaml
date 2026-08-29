@@ -1,4 +1,4 @@
-# M3 — GitOps delivery control plane.
+# M3: GitOps delivery control plane.
 #
 # ArgoCD is the only component in the platform that holds cluster write credentials. CI
 # holds none: delivery is pull-based, so a compromised pipeline cannot deploy to the
@@ -32,11 +32,11 @@ configs:
     # lands on the API server: at 180s the controller alone drove the apiserver to over
     # two cores on this cluster and started timing out requests for everything else.
     #
-    # The cost of the longer interval is bounded and small — a merge takes at most five
-    # minutes to appear rather than three — and it only applies when no webhook is
+    # The cost of the longer interval is bounded and small, a merge takes at most five
+    # minutes to appear rather than three, and it only applies when no webhook is
     # configured, which is the case here because the cluster is not reachable from GitHub.
     # Raised again at nine Applications, three of them Helm-sourced. ArgoCD re-renders
-    # every chart on every reconciliation, and kube-prometheus-stack is enormous — that
+    # every chart on every reconciliation, and kube-prometheus-stack is enormous. That
     # render, repeated, is what saturates a laptop-sized cluster. Ten minutes is still far
     # below the point where anyone notices, because a merge normally arrives via the
     # controller's own change detection long before the next full sweep.
@@ -47,8 +47,8 @@ configs:
     # Without this, M3 and M5 fight: KEDA scales demo-worker to 6, ArgoCD sees live state
     # diverge from Git (which says 1), and self-heal scales it straight back down. The
     # symptom is a workload that oscillates under load and an autoscaler that appears not
-    # to work. This is the concrete boundary from the LLD — M5 owns *scale*, M3 owns
-    # *existence* — expressed as a diff exclusion.
+    # to work. This is the concrete boundary from the LLD. M5 owns *scale*, M3 owns
+    # *existence*, expressed as a diff exclusion.
     resource.customizations.ignoreDifferences.apps_Deployment: |
       jqPathExpressions:
         - '.spec.replicas'
@@ -71,7 +71,7 @@ controller:
       cpu: 100m
       # Measured at ~547Mi with the current application set. The previous 256Mi request
       # meant the scheduler reserved less than half of what this actually holds, so the
-      # node was overcommitted by exactly the amount nobody had accounted for — the same
+      # node was overcommitted by exactly the amount nobody had accounted for, the same
       # requested-versus-actual gap M4 exists to surface, found in the platform itself.
       memory: 576Mi
     limits:
@@ -82,7 +82,7 @@ repoServer:
     requests:
       # Raised from 50m after the repo-server crash-looped 33 times.
       #
-      # It was not out of memory — it was failing its liveness probe. Rendering Helm
+      # It was not out of memory. It was failing its liveness probe. Rendering Helm
       # charts is CPU-bound, and once the platform started delivering kube-prometheus-
       # stack, KEDA and metrics-server from charts rather than plain manifests, 50m of
       # guaranteed CPU was no longer enough to answer /healthz before the probe timed
@@ -106,7 +106,7 @@ redis:
       memory: 128Mi
 
 # Components the platform does not use. Each one disabled is memory returned to the
-# workloads being measured — this cluster runs on a laptop, and an idle component still
+# workloads being measured. This cluster runs on a laptop, and an idle component still
 # occupies the node whose cost M4 is attributing.
 dex:
   enabled: false
@@ -115,7 +115,7 @@ notifications:
   enabled: false
 
 applicationSet:
-  # This chart exposes no `enabled` key for the ApplicationSet controller — only
+  # This chart exposes no `enabled` key for the ApplicationSet controller, only
   # `replicas`. Setting `applicationSet.enabled: false` is accepted silently by Helm and
   # does nothing, which reads as disabled while the controller keeps running. Scaling to
   # zero is the toggle that actually exists.

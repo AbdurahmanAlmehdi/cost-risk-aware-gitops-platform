@@ -4,7 +4,7 @@
 # `cloudflared tunnel route dns` resolves the record against the zone that
 # ~/.cloudflared/cert.pem was authorised for, and it treats the name it is given as a record
 # *within* that zone rather than as a fully-qualified name. If cert.pem was issued for a
-# different zone than the hostname belongs to, it does not fail — it creates
+# different zone than the hostname belongs to, it does not fail. It creates
 #
 #     gitops.abdurahman.ly.libyapulse.ly
 #
@@ -37,7 +37,7 @@ for h in $HOSTS; do
     echo
     echo "      cert.pem is authorised for a different zone, so the hostname was treated as"
     echo "      a subdomain of that zone. A stray record now exists at ${created} and should"
-    echo "      be deleted — it points at this tunnel from a zone that should not."
+    echo "      be deleted. It points at this tunnel from a zone that should not."
     echo
     echo "      Fix: re-run 'cloudflared tunnel login' and choose ${DOMAIN}, then run this"
     echo "      again. Records already created correctly are left alone."

@@ -1,7 +1,7 @@
 # The tunnel connector.
 #
 # It dials out to Cloudflare and holds the connection open, so the cluster needs no inbound
-# firewall rule at all — which is the entire security argument for this approach. Once it
+# firewall rule at all, which is the entire security argument for this approach. Once it
 # is running, every ingress rule on the AWS security group can be deleted, and ports 6443
 # and 10250 stop being one careless edit away from the internet.
 apiVersion: apps/v1

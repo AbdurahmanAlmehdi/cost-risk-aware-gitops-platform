@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provision the demonstration cluster on DigitalOcean Kubernetes.
 #
-# The platform itself is portable — every module is plain Kubernetes plus Helm — so this
+# The platform itself is portable. Every module is plain Kubernetes plus Helm, so this
 # script only has to reproduce the two properties the kind cluster provides that a stock
 # managed cluster does not:
 #
@@ -19,7 +19,7 @@ REGION=${REGION:-fra1}
 # Sized from measurements on the kind cluster, not from guesswork. The platform's steady
 # state is roughly 2.5 cores; the load test briefly needs headroom for six worker replicas
 # on top. Two nodes was tried on the laptop equivalent and the API server began timing out
-# under reconciliation load — hence three, with the control plane managed and therefore
+# under reconciliation load, hence three, with the control plane managed and therefore
 # not competing with any of it.
 SIZE=${SIZE:-s-2vcpu-4gb}
 APP_NODES=${APP_NODES:-2}
@@ -60,7 +60,7 @@ kubectl get nodes -L workload
 
 echo
 echo "==> verifying the CNI actually enforces NetworkPolicy"
-# DOKS ships Cilium, which does enforce policy — but "the vendor says so" is exactly the
+# DOKS ships Cilium, which does enforce policy, but "the vendor says so" is exactly the
 # assumption that makes M6 worthless when it turns out to be wrong. The same test that
 # gates the kind cluster gates this one, and it is the reason no CNI is installed here:
 # if this passes, adding Calico would be replacing a working dataplane for no reason.
@@ -78,11 +78,11 @@ cat <<EOF
 
 Cluster is ready. Next:
 
-  make gitops-bootstrap     # identical to kind — ArgoCD, repo access, root Application
+  make gitops-bootstrap     # identical to kind. ArgoCD, repo access, root Application
   make doks-forward         # local ports for Grafana, ArgoCD and the demo API
   make verify               # run every proof the platform makes about itself
 
-Tear down when the demonstration is over — this bills by the hour:
+Tear down when the demonstration is over. This bills by the hour:
 
   make doks-down
 EOF

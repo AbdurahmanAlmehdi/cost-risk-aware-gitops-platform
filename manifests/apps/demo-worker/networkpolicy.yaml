@@ -22,7 +22,7 @@ spec:
   ingress:
     # Metrics only. app_job_wait_seconds is the series that proves scaling actually helped,
     # so losing this scrape would remove the evidence for M5's central claim while leaving
-    # the autoscaling itself working — a silent gap in the argument rather than an outage.
+    # the autoscaling itself working, a silent gap in the argument rather than an outage.
     - from:
         - namespaceSelector:
             matchLabels:

@@ -1,7 +1,7 @@
 # The producer tier's permitted paths.
 #
 # This is the only workload in the namespace deliberately reachable from outside the
-# cluster — it is the front door, and the load generator drives it through a NodePort.
+# cluster. It is the front door, and the load generator drives it through a NodePort.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -19,7 +19,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Traffic arriving from the node network — a NodePort connection, or a
+    # Traffic arriving from the node network, a NodePort connection, or a
     # `kubectl port-forward` relayed by the kubelet.
     #
     # It does not arrive with the client's address. kube-proxy source-NATs NodePort
@@ -27,7 +27,7 @@ spec:
     # far as policy is concerned both come from the node network. That is why this is an
     # ipBlock and not a podSelector: neither has pod labels to select on.
     #
-    # These are the RFC1918 ranges a cluster's own nodes occupy — 172.16/12 covers kind's
+    # These are the RFC1918 ranges a cluster's own nodes occupy - 172.16/12 covers kind's
     # Docker network, 10/8 covers a DigitalOcean VPC, 192.168/16 covers common bare-metal
     # setups. Listing all three keeps the manifest portable across every environment the
     # platform runs on, which matters because the alternative failure is silent: on a
@@ -35,7 +35,7 @@ spec:
     # generator times out with nothing to indicate why.
     #
     # The cost is that this permits any private-network source on port 8080 rather than
-    # strictly the node subnet. It is still emphatically not 0.0.0.0/0 — GATE-017 blocks
+    # strictly the node subnet. It is still emphatically not 0.0.0.0/0. GATE-017 blocks
     # that, and rightly, since "reachable from the internet" must never be something a
     # pod-level allow-list can quietly grant. The rigorous alternative is a kustomize
     # overlay per environment carrying the exact subnet; that is the right answer for a

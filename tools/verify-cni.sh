@@ -6,7 +6,7 @@
 # networkpolicy` proves nothing. M6's entire security claim rests on enforcement, so the
 # platform verifies enforcement before anything is built on top of it.
 #
-# Method: two pods, one policy, two probes — the denied path must fail and the allowed
+# Method: two pods, one policy, two probes, the denied path must fail and the allowed
 # path must succeed. A CNI that ignores policy passes the second probe and fails the
 # first, which is exactly what we catch.
 set -euo pipefail
@@ -65,7 +65,7 @@ for i in $(seq 1 15); do
   }
   sleep 2
 done
-echo "    ok — denied"
+echo "    ok, denied"
 
 echo "--> applying an explicit allow for app=client, connection should SUCCEED again"
 kubectl -n "$NS" apply -f - >/dev/null <<'EOF'
@@ -96,7 +96,7 @@ for i in $(seq 1 15); do
   }
   sleep 2
 done
-echo "    ok — allowed"
+echo "    ok, allowed"
 
 echo
 echo "PASS: the CNI enforces NetworkPolicy in both directions (deny and allow)."

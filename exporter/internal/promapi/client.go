@@ -77,7 +77,7 @@ func (c *Client) Query(ctx context.Context, query string) ([]Sample, error) {
 
 	samples := make([]Sample, 0, len(parsed.Data.Result))
 	for _, r := range parsed.Data.Result {
-		// A sample is [unixTime, "value"] — the value is a *string* so that Prometheus
+		// A sample is [unixTime, "value"], the value is a *string* so that Prometheus
 		// can express NaN and Inf, which a JSON number cannot carry.
 		var raw string
 		if err := json.Unmarshal(r.Value[1], &raw); err != nil {

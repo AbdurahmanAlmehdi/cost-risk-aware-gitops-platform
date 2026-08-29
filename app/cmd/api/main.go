@@ -3,7 +3,7 @@
 // It accepts jobs over HTTP, places them on the shared queue, and publishes the queue
 // depth that M5 scales on. It deliberately does no heavy work itself: keeping the
 // producer cheap and the consumer expensive is what makes the autoscaling demonstration
-// legible — load arrives at a fixed-size front door and is absorbed by a tier that grows.
+// legible, load arrives at a fixed-size front door and is absorbed by a tier that grows.
 package main
 
 import (
@@ -97,7 +97,7 @@ func main() {
 //
 // The API owns this rather than the workers because every worker would report the same
 // number, and Prometheus would then have to de-duplicate identical series from a set of
-// pods that is itself changing size — precisely while M5 is scaling it.
+// pods that is itself changing size, precisely while M5 is scaling it.
 func (s *server) publishQueueDepth(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -148,7 +148,7 @@ type enqueueResponse struct {
 func (s *server) handleEnqueue(w http.ResponseWriter, r *http.Request) int {
 	req := enqueueRequest{DurationMS: defaultJobDurationMS, Count: 1}
 
-	// An empty body is a valid request for one default job — it keeps the load
+	// An empty body is a valid request for one default job. It keeps the load
 	// generator's command line short, which matters during a live demo.
 	if r.ContentLength != 0 {
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
@@ -221,7 +221,7 @@ func (s *server) handleQueueDepth(w http.ResponseWriter, r *http.Request) int {
 	return writeJSON(w, http.StatusOK, map[string]any{"queue_depth": depth})
 }
 
-// handleLive answers "is this process wedged?" — nothing more. It must not consult
+// handleLive answers "is this process wedged?". Nothing more. It must not consult
 // Redis: a liveness probe that fails when a dependency is down turns one outage into a
 // cluster-wide crash-loop (LLD §9.2, the control/data plane failure split applied at
 // the pod level).

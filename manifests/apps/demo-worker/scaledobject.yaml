@@ -1,8 +1,8 @@
-# M5 — the scaling rule for the consumer tier.
+# M5, the scaling rule for the consumer tier.
 #
 # The demand signal is the shared queue itself, not a proxy for it. CPU utilisation only
 # rises *after* the work has arrived and the existing pods are already saturated, so
-# scaling on CPU always reacts late — by the time it fires, the backlog is built and the
+# scaling on CPU always reacts late, by the time it fires, the backlog is built and the
 # queueing delay has already been paid. Queue depth is the demand, observable the moment
 # it appears.
 #
@@ -22,7 +22,7 @@ spec:
 
   # Never scales to zero. A cold start would have to pull the image and connect to Redis
   # before the first job could be picked up, so the queue would drain more slowly after a
-  # quiet period than during one — and the platform's own idle cost would be hidden rather
+  # quiet period than during one, and the platform's own idle cost would be hidden rather
   # than measured, which is precisely what M4 exists to show.
   minReplicaCount: 1
   # Deliberately explicit. Omitting this hands the decision to KEDA's default of 100
@@ -34,7 +34,7 @@ spec:
   # a brief lull between bursts does not tear down workers that are about to be needed.
   cooldownPeriod: 60
 
-  # If the trigger itself fails — Redis unreachable, scaler erroring — hold at a sane
+  # If the trigger itself fails. Redis unreachable, scaler erroring, hold at a sane
   # replica count rather than collapsing to the minimum. Scaling down because the signal
   # disappeared is the worst possible reading of "no demand": the queue may be full and
   # simply unobservable (LLD §5.5).

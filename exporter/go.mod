@@ -23,6 +23,6 @@ require (
 
 // M4 prices live usage with the exact code M2 prices manifests with. A second
 // implementation reading the same YAML would drift, and a drifted rate makes the
-// pre-merge estimate and the live measurement quietly incomparable — which would
+// pre-merge estimate and the live measurement quietly incomparable, which would
 // dissolve the one claim this platform is built to demonstrate.
 replace github.com/AbdurahmanAlmehdi/gitops-platform/pricing => ../pricing

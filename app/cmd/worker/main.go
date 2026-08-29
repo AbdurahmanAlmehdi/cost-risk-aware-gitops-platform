@@ -27,7 +27,7 @@ import (
 
 // dequeueTimeout bounds each blocking pop. It must be comfortably shorter than the
 // pod's terminationGracePeriodSeconds, otherwise a scale-down would sit in a blocking
-// read until the kubelet SIGKILLs it — losing the job it was about to receive.
+// read until the kubelet SIGKILLs it, losing the job it was about to receive.
 const dequeueTimeout = 5 * time.Second
 
 func main() {
@@ -122,7 +122,7 @@ func consume(ctx context.Context, q *queue.Queue, log *slog.Logger) {
 
 		// Queueing delay is measured here because the consumer is the only party that
 		// knows when the wait actually ended. This is the series that degrades under
-		// load and recovers after a scale-up — the proof that scaling helped.
+		// load and recovers after a scale-up, the proof that scaling helped.
 		if !job.EnqueuedAt.IsZero() {
 			metrics.JobWaitTime.Observe(time.Since(job.EnqueuedAt).Seconds())
 		}
@@ -137,7 +137,7 @@ func consume(ctx context.Context, q *queue.Queue, log *slog.Logger) {
 func newMetricsMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.Handler())
-	// The worker has no readiness concept — it pulls work rather than receiving it, so
+	// The worker has no readiness concept. It pulls work rather than receiving it, so
 	// it is never in a Service's endpoint list. Liveness alone is meaningful here, and
 	// it deliberately does not consult Redis (see the API's handleLive for why).
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {

@@ -1,4 +1,4 @@
-# M7 — the platform's primary demonstration surface.
+# M7, the platform's primary demonstration surface.
 #
 # The dashboard is a ConfigMap in Git, picked up by Grafana's sidecar, so the surface the
 # project is judged on is version-controlled and reviewed like everything else. A
@@ -77,7 +77,7 @@ data:
         {
           "type": "stat",
           "title": "Utilisation of reserved capacity",
-          "description": "Actual as a share of reserved. Low utilisation is not a fault — it is headroom that was paid for.",
+          "description": "Actual as a share of reserved. Low utilisation is not a fault. It is headroom that was paid for.",
           "gridPos": { "h": 5, "w": 8, "x": 8, "y": 9 },
           "fieldConfig": {
             "defaults": { "unit": "percentunit", "min": 0, "max": 1 },
@@ -93,7 +93,7 @@ data:
         {
           "type": "stat",
           "title": "Cost data freshness",
-          "description": "Seconds since the last successful collection. Distinguishes 'cost is zero' from 'cost is stale' — two states that look identical on a cost chart.",
+          "description": "Seconds since the last successful collection. Distinguishes 'cost is zero' from 'cost is stale', two states that look identical on a cost chart.",
           "gridPos": { "h": 5, "w": 8, "x": 16, "y": 9 },
           "fieldConfig": {
             "defaults": {

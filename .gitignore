@@ -10,7 +10,7 @@ kubeconfig
 .tmp/
 .cache/
 
-# Secrets — never committed. See docs/adr/0004-secret-handling.md
+# Secrets, never committed. See docs/adr/0004-secret-handling.md
 .env
 *.local.yaml
 !*.example.yaml

@@ -6,7 +6,7 @@
 # could never be deployed.
 #
 # The gate binary decides; this workflow only delivers the verdict. That split is
-# deliberate — the job's exit status becomes the status check, so a failure to post a
+# deliberate, the job's exit status becomes the status check, so a failure to post a
 # comment can never turn a blocking verdict into a passing one.
 name: CI
 
@@ -47,7 +47,7 @@ jobs:
             exporter/go.sum
 
       # Each module is vetted and tested independently. They are separate modules on
-      # purpose — pricing is a shared leaf that both the control plane (M2) and the data
+      # purpose, pricing is a shared leaf that both the control plane (M2) and the data
       # plane (M4) depend on, and neither depends on the other.
       - name: Test every module
         run: |
@@ -77,8 +77,8 @@ jobs:
             context: .
             dockerfile: exporter/Dockerfile
           # The dashboard builds from dashboard/ alone. Unlike the exporter it shares no
-          # module with the rest of the repository — it depends on nothing outside the
-          # standard library — so the narrower context is the correct one.
+          # module with the rest of the repository. It depends on nothing outside the
+          # standard library, so the narrower context is the correct one.
           - image: demo-dashboard
             context: dashboard
             dockerfile: dashboard/Dockerfile
@@ -125,7 +125,7 @@ jobs:
             echo "${{ steps.image.outputs.name }}@${{ steps.push.outputs.digest }}"
             echo '```'
             echo
-            echo "Pin manifests to this digest, never to the tag — a tag can be repointed"
+            echo "Pin manifests to this digest, never to the tag, a tag can be repointed"
             echo "at different bytes after the gate has approved it."
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -204,17 +204,17 @@ jobs:
           esac
 
   # ---------------------------------------------------------------------------------------
-  # M1/M3 — close the image-update loop.
+  # M1/M3, close the image-update loop.
   #
   # Without this job, application code is the one change type that never reaches the
   # cluster: a manifest change merges and ArgoCD applies it, but a Go change merges, CI
   # publishes a new image, and nothing updates the digest that would deploy it. The result
-  # is a new image that nothing references — which is why editing Go and watching nothing
+  # is a new image that nothing references, which is why editing Go and watching nothing
   # happen was the expected behaviour rather than a bug.
   #
   # This opens a PULL REQUEST rather than writing to main or to the cluster. ArgoCD Image
   # Updater would do the latter, and that would make the one change type that alters what
-  # actually runs the one change nobody reviews — the exact inverse of what this platform
+  # actually runs the one change nobody reviews, the exact inverse of what this platform
   # argues for. A digest bump is a diff, and diffs go through the gate.
   # ---------------------------------------------------------------------------------------
   bump:
@@ -235,7 +235,7 @@ jobs:
           # Without this, checkout stores the default GITHUB_TOKEN as an
           # http.<host>.extraheader Authorization entry in the repository's git config.
           # That header takes precedence over credentials embedded in a remote URL, so the
-          # `git remote set-url` further down — which exists precisely to push as the PAT —
+          # `git remote set-url` further down, which exists precisely to push as the PAT -
           # had no effect, and the push authenticated as github-actions[bot] instead:
           #
           #   remote: Permission to <repo>.git denied to github-actions[bot]
@@ -273,7 +273,7 @@ jobs:
             echo "token=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # A pull request opened with the default GITHUB_TOKEN does not trigger workflows —
+      # A pull request opened with the default GITHUB_TOKEN does not trigger workflows -
       # GitHub suppresses that to prevent runaway recursion. The consequence is specific and
       # unacceptable here: the bump would arrive as a pull request carrying no gate verdict,
       # which is the one kind of change this platform must never produce. So the job fails
@@ -337,7 +337,7 @@ jobs:
           Opened automatically after a merge to `main`.
 
           Application code changes otherwise never reach the cluster. CI publishes a new
-          image on every merge, but the manifests pin a digest and nothing updated it — so a
+          image on every merge, but the manifests pin a digest and nothing updated it, so a
           new image existed that nothing referenced.
 
           This is a **proposal**, not a deployment. It carries a gate verdict like any other

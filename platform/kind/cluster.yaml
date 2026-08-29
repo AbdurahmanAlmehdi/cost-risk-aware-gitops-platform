@@ -1,4 +1,4 @@
-# M0 — cluster substrate for the Cost- and Risk-Aware GitOps Platform.
+# M0, cluster substrate for the Cost- and Risk-Aware GitOps Platform.
 #
 # Two deliberate choices are baked in here because they are expensive to change later:
 #

@@ -4,9 +4,9 @@
 # per rendered manifest, passing that manifest as `input.manifest` and the whole rendered
 # set as `input.peers`.
 #
-# The peer set matters: some properties are only decidable across objects — whether a
+# The peer set matters: some properties are only decidable across objects, whether a
 # Service actually routes to a Deployment, whether a workload is covered by a
-# NetworkPolicy — and a rule that can see only one manifest has to guess. A guessing rule
+# NetworkPolicy, and a rule that can see only one manifest has to guess. A guessing rule
 # fires on correct manifests, and a gate that cries wolf is a gate that gets switched off.
 #
 # (The object under evaluation is called `manifest` rather than `object` because `object`

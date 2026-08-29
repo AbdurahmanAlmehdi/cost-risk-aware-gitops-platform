@@ -1,7 +1,7 @@
-# M2 — Pre-Merge Gate configuration.
+# M2: Pre-Merge Gate configuration.
 #
 # Every value that changes the gate's verdict lives here, in version control, and is
-# itself subject to the gate (LLD §9.1, §9.4 — the platform governs changes to itself
+# itself subject to the gate (LLD §9.1, §9.4, the platform governs changes to itself
 # the same way it governs application changes). Nothing that alters a verdict is
 # hard-coded in the gate binary.
 
@@ -44,7 +44,7 @@ spec:
 
     # Elastic headroom, judged separately from committed spend.
     #
-    # The thresholds above apply to the floor — what a change costs with nothing
+    # The thresholds above apply to the floor, what a change costs with nothing
     # happening. These apply to the ceiling an autoscaler authorises. They have to be
     # separate budgets: a 20% cap tight enough to catch a careless replica bump would make
     # any autoscaler unadoptable, since a large idle-to-peak ratio is the entire point of
@@ -61,7 +61,7 @@ spec:
       maxBurstRatio: 8.0
 
     # A DaemonSet's replica count is the size of the cluster, which the gate cannot know
-    # at merge time — it is evaluating Git, not a live cluster, and deliberately holds no
+    # at merge time. It is evaluating Git, not a live cluster, and deliberately holds no
     # cluster credentials (LLD §9.4). This is the node count it assumes instead. Stated
     # explicitly because it is an assumption, and the verdict flags any DaemonSet it
     # priced so the reader knows the figure depends on it.
@@ -80,7 +80,7 @@ spec:
     # Severities that cause a failing verdict. Anything else is reported as a warning.
     failOnSeverity: ["block"]
 
-    # An erroring rule is NOT a passing rule (LLD §2.5 — fail safe on uncertainty).
+    # An erroring rule is NOT a passing rule (LLD §2.5, fail safe on uncertainty).
     treatErrorAsBlocking: true
 
   # ---------------------------------------------------------------------------
@@ -93,7 +93,7 @@ spec:
     commentStrategy: update-in-place
 
   # ---------------------------------------------------------------------------
-  # M8b — advisory PR explanation. Off by default and never affects the verdict.
+  # M8b, advisory PR explanation. Off by default and never affects the verdict.
   # ---------------------------------------------------------------------------
   explain:
     enabled: false

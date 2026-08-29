@@ -35,4 +35,4 @@ echo "tunnel token installed"
 echo
 echo "  Reviewers are authorised by email in Cloudflare Access, not by a shared password."
 echo "  Add one to the 'gitops-platform reviewers' Access group and they can sign in with a"
-echo "  one-time PIN — no account, and revocable per person."
+echo "  one-time PIN, no account, and revocable per person."
