@@ -26,4 +26,4 @@ configMapGenerator:
 images:
   - name: cost-exporter
     newName: ghcr.io/abdurahmanalmehdi/cost-risk-aware-gitops-platform/cost-exporter
-    digest: sha256:79e1b7f881b3f649b17ca7068c89d4b169b054a02a9a3d1cb81cf39da97e75e0
+    digest: sha256:eeaa4226fa7062c6a95560c259525418c31a7d35b5283c11aae03b14ef8aa165
