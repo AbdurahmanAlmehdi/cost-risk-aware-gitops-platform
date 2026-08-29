@@ -1,0 +1,23 @@
+# The power switch for the review host.
+#
+# Deployed separately from the cluster on purpose: this has to work when the cluster is
+# off, which is exactly when it is needed. Nothing here can be delivered by ArgoCD,
+# because ArgoCD is on the machine this turns on.
+name = "gitops-platform-power"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# Observability on, so `wrangler tail` shows who pressed which button. The Worker logs the
+# Access-authenticated address with every state change, and that log is the only audit
+# trail for an action that costs money.
+[observability]
+enabled = true
+
+[vars]
+# Not a secret: an instance id is meaningless without credentials, and keeping it here
+# rather than in a secret means the deployment is fully described by this file plus two
+# opaque values.
+INSTANCE_ID = "i-054dedc804b0ca4e0"
+
+# AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set with `wrangler secret put`, never
+# written here. See README.md in this directory.
