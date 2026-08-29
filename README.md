@@ -73,8 +73,12 @@ Full design: [`docs/LLD.md`](docs/LLD.md).
 | 3 | M3 GitOps Delivery | ✅ ArgoCD app-of-apps; drift reverted in ~5s, merge→cluster in 41s |
 | 4 | M4 / M7 | ✅ Cost exporter, Prometheus, Grafana; prediction reconciles with measurement |
 | 5 | M5 Elasticity | ✅ KEDA on queue depth; 1→6 in 15s, backlog drained, cost tracked the curve |
-| 6 | M6 Security Baseline | ⬜ Default-deny, allow-lists, connectivity matrix |
-| 7 | M8 Cost Intelligence | ⬜ Anomaly baseline, PR explainer |
+| 6 | M6 Security Baseline | ✅ Default-deny both directions, allow-lists, enforcement verified on the CNI |
+| 7 | M8 Cost Intelligence | ⬜ Not started. Anomaly baseline and PR explainer |
+
+M8 is the only module not built. Per the LLD it is the advisory plane: it recommends and
+explains, and never blocks or deploys. The platform's claims stand without it, which is
+why it is last rather than missing.
 
 [PR #1](https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform/pull/1) is a
 deliberately non-compliant change kept open as a live demonstration of the gate.
@@ -230,14 +234,70 @@ and no security context. If they cannot, it refuses to run.
 
 ## Layout
 
+Four kinds of thing live here, and the distinction matters more than the folder names:
+**code** that runs, **desired state** that describes what should run, **substrate** that a
+cluster is built from, and **proofs** that check the claims.
+
 ```
-app/          M1 — the demo workload (API producer + queue worker)
-gate/         M2 — the gate binary: diff, cost, policy, verdict, report
-policies/     M2 — Rego rules (18, across resources/probes/privilege/images/network)
-manifests/    M3 — desired state; the only authority on what runs
-platform/     cluster substrate: kind config, Calico, ArgoCD values
-gate.yaml     every value that can change a verdict, in version control
-docs/         LLD and architecture decisions
+manifests/              Desired state. The only authority on what runs.
+  argocd/root.yaml        The one object applied by hand. Everything else follows from it.
+  argocd/apps/            Ten Application definitions, ordered by sync wave.
+  apps/                   Per-workload manifests: deployment, service, policy, scaling.
+  platform/               Namespaces and the default-deny network baseline.
+
+app/                    M1. The demo workload the platform governs.
+  cmd/api/                Producer. Accepts jobs, pushes them onto the queue.
+  cmd/worker/             Consumer. The tier that scales.
+  internal/work/          The job itself: real CPU, not a sleep, so scaling has a cause.
+  internal/queue/         Redis queue access shared by both.
+
+gate/                   M2. The pre-merge gate, and the reason a change can be blocked.
+  cmd/gate/               Entry point: `gate evaluate` and `gate price`.
+  internal/cost/          Prices manifests. Knows that an autoscaled workload has a band.
+  internal/policy/        Runs the Rego rules and collects violations.
+  internal/verdict/       Turns cost and policy findings into pass, warn or block.
+  internal/report/        The comment that appears on the pull request.
+
+policies/               M2. Eighteen Rego rules: resources, probes, privilege, images,
+                        network. Each one names what it protects against.
+
+exporter/               M4. Prices what is actually running, live.
+  internal/attribution/   Reads usage from Prometheus on two bases: requested and actual.
+
+dashboard/              The demonstration page at gitops.abdurahman.ly.
+  web/                    The page itself. Runs the drift and load tests from a button.
+
+pricing/                The rate table shared by the gate and the exporter, so a
+                        prediction and a measurement cannot disagree about arithmetic.
+
+platform/               Cluster substrate. What a cluster is made of, before anything runs.
+  kind/                   Local three-node cluster definition.
+  aws/                    The review host's idle-stop, which powers it off when unused.
+  network/                Calico installation.
+  argocd/                 ArgoCD's own configuration values.
+
+tools/                  The proofs, and the operational scripts.
+  verify-cni.sh           Asserts network policy is enforced, not merely accepted.
+  drift-test.sh           Edits the cluster by hand and asserts Git wins.
+  reconcile.sh            Checks the pre-merge estimate against live measurement.
+  connectivity-matrix.sh  Asserts the allow and deny matrix pair by pair.
+  load-test.sh            Drives demand and proves the worker tier scales and drains.
+  demo-host.sh            Starts, stops and prices the review host.
+  edge-routes.sh          Points the demonstration hostnames at the tunnel.
+  edge-secrets.sh         Installs the tunnel token into the cluster.
+  bump-digests.sh         Rewrites pinned image digests after a publish.
+
+edge-control/           A power switch for the review host, deployed to Cloudflare rather
+                        than to the cluster, because it is what starts the cluster.
+
+docs/
+  LLD.md                  The specification: modules M1 to M8 and their contracts.
+  DEMO.md                 The runbook. Six acts, with what to say during each.
+  adr/                    Decisions and why they went the way they did.
+
+gate.yaml               Every value that can change a verdict, in version control.
+Makefile                Every target is idempotent. `make help` lists them.
+.github/workflows/      Build, test, gate, publish, and propose digest bumps.
 ```
 
 ## Honesty about the cost figures
