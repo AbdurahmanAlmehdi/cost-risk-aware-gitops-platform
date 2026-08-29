@@ -40,7 +40,7 @@ START_REPLICAS=$(replicas)
 echo "    starting at ${START_REPLICAS} replica(s), queue depth $(depth)"
 
 # A bounds violation at any point is a failure, so replicas are checked on every poll
-# rather than only at the end — a transient overshoot is exactly the bug this catches.
+# rather than only at the end, a transient overshoot is exactly the bug this catches.
 assert_bounds() {
   local r=$1
   if [ "$r" -gt "$MAX" ]; then
@@ -103,7 +103,7 @@ echo "    backlog cleared"
 echo
 echo "PASS"
 echo "  demand rose, replicas followed to ${PEAK} (bounds ${MIN}–${MAX} never breached),"
-echo "  and the backlog drained — the added replicas did the work."
+echo "  and the backlog drained, the added replicas did the work."
 echo
 echo "  Scale-down is deliberately slow (cooldownPeriod 60s, stabilisation 120s) so a"
 echo "  lull between bursts does not tear down workers that are about to be needed."

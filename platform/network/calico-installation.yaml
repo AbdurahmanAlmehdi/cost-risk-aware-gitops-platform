@@ -1,8 +1,8 @@
-# M6 — CNI enforcement point.
+# M6: CNI enforcement point.
 #
 # Calico replaces kindnet because kindnet does not implement NetworkPolicy. Without a
 # policy-enforcing CNI, M6's default-deny manifests would be accepted by the API server
-# and enforce nothing — the platform would report a security baseline it does not have.
+# and enforce nothing, the platform would report a security baseline it does not have.
 #
 # Applied after the tigera-operator, which owns the lifecycle of these CRs.
 apiVersion: operator.tigera.io/v1
@@ -11,7 +11,7 @@ metadata:
   name: default
 spec:
   # kind runs every node inside one Docker bridge network, so all nodes are on the same
-  # subnet and cross-subnet encapsulation is never triggered — traffic stays unencapsulated
+  # subnet and cross-subnet encapsulation is never triggered, traffic stays unencapsulated
   # and fast, while remaining correct if the topology changes.
   calicoNetwork:
     ipPools:

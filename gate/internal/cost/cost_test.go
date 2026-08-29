@@ -124,7 +124,7 @@ spec:
           resources: {requests: {cpu: "1", memory: 1Gi}}
 `)
 	// Init containers run one at a time, so the pod needs max(2, 1) = 2 cores for the
-	// init phase and 1 core for the app phase — the requirement is the larger, 2 cores.
+	// init phase and 1 core for the app phase, the requirement is the larger, 2 cores.
 	// Memory likewise: max(1, 1) init vs 1 app = 1 GiB.
 	// 2 cores × $0.10 + 1 GiB × $0.01 = $0.21/hour × 100 = $21.00.
 	assertMoney(t, est.MonthlyUSD, 21.00)
@@ -155,7 +155,7 @@ spec:
 
 // TestMissingRequestsArePricedAndFlagged guards the incentive: if a container with no
 // requests were priced at zero, declaring nothing would be the cheapest way through the
-// cost gate — and declaring nothing is exactly what the policy gate forbids.
+// cost gate, and declaring nothing is exactly what the policy gate forbids.
 func TestMissingRequestsArePricedAndFlagged(t *testing.T) {
 	est := estimate(t, `
 apiVersion: apps/v1
@@ -393,7 +393,7 @@ spec:
 }
 
 // TestAutoscalerTargetingAnotherWorkloadIsIgnored guards against bounds bleeding across
-// workloads — an autoscaler on the API must not reprice the worker.
+// workloads, an autoscaler on the API must not reprice the worker.
 func TestAutoscalerTargetingAnotherWorkloadIsIgnored(t *testing.T) {
 	other := `
 apiVersion: keda.sh/v1alpha1

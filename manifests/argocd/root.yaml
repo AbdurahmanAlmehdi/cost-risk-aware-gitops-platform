@@ -1,7 +1,7 @@
 # The root of the app-of-apps tree.
 #
-# This is the only object in the entire platform that is applied by hand. Everything else
-# — including every other Application — is created by ArgoCD from Git. That single manual
+# This is the only object in the entire platform that is applied by hand. Everything
+# else, including every other Application, is created by ArgoCD from Git. That single manual
 # step is the bootstrap seam: after it, adding a workload means committing a file, not
 # running kubectl.
 #
@@ -29,7 +29,7 @@ spec:
     automated:
       # Remove Applications whose files have been deleted from Git. Without prune, a
       # deleted manifest leaves a running workload that nothing in the repository
-      # accounts for — and M4 keeps billing for it.
+      # accounts for, and M4 keeps billing for it.
       prune: true
       # Revert manual changes. This is what makes Git the single authority rather than
       # merely the usual source.

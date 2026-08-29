@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start, stop and inspect the AWS review host.
 #
-# The instance bills by the second while running and nothing while stopped — only its
+# The instance bills by the second while running and nothing while stopped, only its
 # 40GB disk persists, at roughly $3.50/month. So the honest way to use it is: start it
 # before a review, stop it after. Everything survives a stop/start, because k3s and all
 # its state live on that disk.
@@ -29,7 +29,7 @@ case "${1:-status}" in
     echo "running at ${IP}"
     echo
     # The public address changes on every start unless an Elastic IP is attached, and an
-    # idle Elastic IP is itself billed — so the address is printed rather than assumed.
+    # idle Elastic IP is itself billed, so the address is printed rather than assumed.
     echo "NOTE: the public address changes on each start. Update the security group and"
     echo "      any links you have shared:  make demo-host-allow IP=<address>"
     echo

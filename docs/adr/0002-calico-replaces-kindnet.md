@@ -11,7 +11,7 @@ ships with kindnet, which **does not implement NetworkPolicy**.
 This creates a specific and dangerous failure mode. The Kubernetes API server validates and
 stores a `NetworkPolicy` object regardless of whether the installed CNI can act on it. Under
 kindnet, `kubectl get networkpolicy` lists the policies, `kubectl describe` shows the
-expected rules, and the manifests pass review — while all traffic continues to flow. The
+expected rules, and the manifests pass review, while all traffic continues to flow. The
 platform would report a security posture it does not have, which is worse than having no
 policy at all, because it is believed.
 
@@ -33,7 +33,7 @@ under an explicit allow. A CNI that ignores policy fails the middle assertion.
 - Bootstrap is roughly two minutes slower while Calico programmes the dataplane.
 - Calico adds ~10 pods to the cluster, which on an 8 GB Docker allocation is a real cost.
   Accepted: M6 is not demonstrable without an enforcing CNI.
-- The security claim is now falsifiable — the verification is a test that can fail, not an
+- The security claim is now falsifiable, the verification is a test that can fail, not an
   assertion in a document.
 
 Applies as of Calico v3.32, where operator CRDs ship in `operator-crds.yaml` and must be

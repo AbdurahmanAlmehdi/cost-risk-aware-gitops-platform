@@ -23,7 +23,7 @@ spec:
   syncPolicy:
     automated:
       # Namespaces are deliberately NOT pruned. Pruning a namespace deletes everything
-      # inside it, including workloads owned by other Applications — far too destructive
+      # inside it, including workloads owned by other Applications, far too destructive
       # an outcome for what is usually a file being moved.
       prune: false
       selfHeal: true

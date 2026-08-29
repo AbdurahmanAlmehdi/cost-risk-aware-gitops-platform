@@ -1,8 +1,8 @@
 # The single pricing authority for the whole platform.
 #
 # This file is read by BOTH:
-#   * M2's cost sub-gate  — to estimate the cost delta of a pull request (predicted)
-#   * M4's cost exporter  — to price live resource consumption      (actual)
+#   * M2's cost sub-gate, to estimate the cost delta of a pull request (predicted)
+#   * M4's cost exporter, to price live resource consumption      (actual)
 #
 # Using one table for both is the point: a pre-merge estimate and a post-deploy
 # measurement are expressed in the same units against the same rates, so they can be
@@ -55,7 +55,7 @@ spec:
 
   # M2 prices what a manifest *requests*, because requests are what the scheduler
   # reserves and therefore what a cloud provider bills for capacity planning.
-  # A container with no requests is not free — it is unbounded. These fallbacks make
+  # A container with no requests is not free. It is unbounded. These fallbacks make
   # that visible, and the policy sub-gate blocks the manifest separately.
   missingRequests:
     cpu: "500m"

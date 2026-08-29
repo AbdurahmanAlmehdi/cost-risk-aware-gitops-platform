@@ -105,10 +105,10 @@
 </header>
 
 <section>
-  <p class="act">Act 1 — the problem</p>
+  <p class="act">Act 1: the problem</p>
   <h2>A one-line change that nobody could see</h2>
   <p>
-    A developer changes one line in a deployment file — replicas from 1 to 8 — because a
+    A developer changes one line in a deployment file, replicas from 1 to 8, because a
     load test was slow. Nobody notices. It passes review, because reviewers read code, not
     capacity. The cluster grows eightfold. The finance team finds out five weeks later, on
     an invoice, with no way to trace which change caused it.
@@ -117,12 +117,12 @@
 </section>
 
 <section>
-  <p class="act">Act 2 — govern before it runs</p>
+  <p class="act">Act 2: govern before it runs</p>
   <h2>The change is priced at review, not on the invoice</h2>
   <p>
     Pull request #1 is real, still open, and still blocked. The gate priced it before
     anything ran: <strong>$11.73 → $370.62, a 3060% increase</strong>. It also failed
-    GATE-005 — a container with no health check, which Kubernetes could never restart if it
+    GATE-005, a container with no health check, which Kubernetes could never restart if it
     hung. So the gate checks safety, not only money.
   </p>
   <p class="claim">
@@ -131,7 +131,7 @@
     actually made.
   </p>
   <p class="note">
-    Pull request #3 shows the same machinery approving a change — worth thirty seconds,
+    Pull request #3 shows the same machinery approving a change, worth thirty seconds,
     otherwise the gate looks like something that only ever says no. The thresholds
     themselves live in a version-controlled file, and changing them goes through this same
     gate.
@@ -139,24 +139,24 @@
   <div class="actions">
     <a class="linkbtn" target="_blank" rel="noopener"
        href="https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform/pull/1">
-      Open PR #1 — blocked</a>
+      Open PR #1 (blocked)</a>
     <a class="linkbtn" target="_blank" rel="noopener"
        href="https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform/pull/3">
-      Open PR #3 — passed</a>
+      Open PR #3 (passed)</a>
   </div>
 </section>
 
 <section>
-  <p class="act">Act 3 — Git governs the cluster</p>
+  <p class="act">Act 3: Git governs the cluster</p>
   <h2>Manual changes do not survive here</h2>
   <p>
     Every application below came from a merged pull request. Nobody on this project has run
-    a deploy command — there isn't one.
+    a deploy command. There isn't one.
   </p>
   <ul class="apps" id="apps"><li>loading…</li></ul>
   <p>
-    The button edits the live cluster directly — the way an engineer would at 3am during an
-    incident — by setting a memory limit the repository never authorised. Then it waits,
+    The button edits the live cluster directly, the way an engineer would at 3am during an
+    incident, by setting a memory limit the repository never authorised. Then it waits,
     and does nothing else.
   </p>
   <div class="actions">
@@ -170,11 +170,11 @@
 </section>
 
 <section>
-  <p class="act">Act 4 — measure while it runs</p>
+  <p class="act">Act 4: measure while it runs</p>
   <h2>The estimate can be checked, not just trusted</h2>
   <p>
-    The tiles at the top of this page show <strong>reserved</strong> spend — what we are
-    paying for — against <strong>actual</strong> use. The gap between them is waste: money
+    The tiles at the top of this page show <strong>reserved</strong> spend, what we are
+    paying for, against <strong>actual</strong> use. The gap between them is waste: money
     spent on capacity nobody used. Low utilisation is not automatically bad; it is headroom
     we chose to buy. The point is that it is now a decision instead of an accident.
   </p>
@@ -186,10 +186,10 @@
 </section>
 
 <section>
-  <p class="act">Act 5 — demand drives cost</p>
+  <p class="act">Act 5: demand drives cost</p>
   <h2>Demand arrives, the platform responds, and the response has a price</h2>
   <p>
-    The button puts 600 jobs on the queue. Nothing is reconfigured — the system reacts on
+    The button puts 600 jobs on the queue. Nothing is reconfigured, the system reacts on
     its own. Watch three things in order: the queue fills, replicas climb, and the backlog
     drains again.
   </p>
@@ -198,7 +198,7 @@
   </div>
   <div class="log" id="log-load" aria-live="polite"></div>
   <p class="claim">
-    Autoscaling demonstrations usually stop at the middle step — replicas went up,
+    Autoscaling demonstrations usually stop at the middle step, replicas went up,
     therefore it works. That only proves something happened. The queue draining proves it
     <em>helped</em>.
   </p>
@@ -209,7 +209,7 @@
 </section>
 
 <section>
-  <p class="act">Act 6 — none of this is a slide</p>
+  <p class="act">Act 6: none of this is a slide</p>
   <h2>Every claim is a command that fails loudly</h2>
   <p>
     The two proofs on this page are the same checks <code>make verify</code> runs in a
@@ -218,7 +218,7 @@
     clearing, the output above would say so in red.
   </p>
   <p class="note">
-    Worth volunteering: the cost figures are <em>modelled</em>, not billed — published cloud
+    Worth volunteering: the cost figures are <em>modelled</em>, not billed, published cloud
     rates applied to this cluster. What is demonstrated is that prediction and measurement
     agree, not that the money is real. The gate can also only price what it renders from
     Git, so components installed from Helm charts show as $0.00.
@@ -294,10 +294,10 @@
     const fresh = document.getElementById("freshness");
     if (age && age.value !== null && age.value !== undefined) {
       fresh.textContent = age.value > 120
-        ? `Cost figures are ${Math.round(age.value / 60)} minutes old — the exporter may have stopped.`
+        ? `Cost figures are ${Math.round(age.value / 60)} minutes old, the exporter may have stopped.`
         : `Cost figures updated ${Math.round(age.value)} seconds ago.`;
     } else {
-      fresh.textContent = "Cost figures unavailable — showing no number rather than a zero.";
+      fresh.textContent = "Cost figures unavailable, showing no number rather than a zero.";
     }
 
     // Reflect a run started in another tab, so two reviewers don't fight over the buttons.
@@ -324,7 +324,7 @@
   }
 
   // The run streams as server-sent events on the POST response. EventSource only speaks
-  // GET, so the body is read directly — which also means closing the tab cancels the run
+  // GET, so the body is read directly, which also means closing the tab cancels the run
   // server-side instead of leaving it polling into a dead socket.
   async function run(name) {
     if (running) return;

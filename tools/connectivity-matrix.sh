@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M6 — the connectivity matrix (LLD §6.6).
+# M6, the connectivity matrix (LLD §6.6).
 #
 # For each pair of workloads, assert the expected allow/deny outcome. This is the test that
 # distinguishes a network baseline from a set of YAML files that happen to exist: the API
@@ -7,7 +7,7 @@
 # "the policies are applied" proves nothing at all.
 #
 # Both directions matter equally. A test that only checks the allowed paths passes
-# perfectly on a cluster with no isolation whatsoever — which is precisely the failure this
+# perfectly on a cluster with no isolation whatsoever, which is precisely the failure this
 # module exists to prevent.
 set -euo pipefail
 
@@ -31,7 +31,7 @@ echo
 # It cannot exec into the real pods: the application images are distroless, with no shell
 # and no netcat, which is a deliberate hardening choice that also makes them impossible to
 # probe from the inside. Kubernetes NetworkPolicy selects on labels, so a pod wearing the
-# workload's labels is subject to exactly the same rules — this tests the policy as
+# workload's labels is subject to exactly the same rules. This tests the policy as
 # written, which is what the matrix is for. That the real pods can talk is proven
 # separately, by the application actually draining its queue.
 probe_as() {
@@ -82,7 +82,7 @@ echo "-- paths that MUST be blocked (isolation is real) --"
 # The producer has no business reaching the consumer: they communicate exclusively through
 # the queue. If this succeeds, the allow-list is wider than the architecture.
 check "demo-api  -> demo-worker:8080" deny api "app.kubernetes.io/name=demo-api" demo-worker 8080
-# Nothing should be able to reach the API's HTTP port from inside the namespace — external
+# Nothing should be able to reach the API's HTTP port from inside the namespace, external
 # traffic arrives through the NodePort from the node network, not from a pod.
 check "demo-worker -> demo-api:8080" deny worker "app.kubernetes.io/name=demo-worker" demo-api 8080
 
@@ -118,14 +118,14 @@ if [ -n "$KEDA_METRIC" ]; then
 else
   printf "  %-56s %s\n" "keda -> redis (queue depth readable)" "FAIL (no metric; scaler cannot reach Redis)"
   fail=$((fail + 1))
-  FAILURES+=("KEDA cannot read queue depth — autoscaling is dead while appearing configured")
+  FAILURES+=("KEDA cannot read queue depth, autoscaling is dead while appearing configured")
 fi
 
 # Prometheus scrapes the demo pods from another namespace. Losing this does not break the
-# application, it breaks the evidence — cost and latency go flat, which reads as a workload
+# application, it breaks the evidence, cost and latency go flat, which reads as a workload
 # that costs nothing rather than as a blocked connection.
 # Read through a port-forward rather than exec'ing a shell tool into the Prometheus
-# container — the same distroless problem, and an exec failure would otherwise be
+# container, the same distroless problem, and an exec failure would otherwise be
 # indistinguishable from a blocked scrape.
 kubectl -n observability port-forward svc/observability-kube-prometh-prometheus 9098:9090 >/dev/null 2>&1 &
 PROM_PF=$!
@@ -139,7 +139,7 @@ if [ "${UP:-0}" -gt 0 ]; then
 else
   printf "  %-56s %s\n" "prometheus -> demo pods (scrape succeeding)" "FAIL (no targets up)"
   fail=$((fail + 1))
-  FAILURES+=("Prometheus cannot scrape the demo namespace — M4 and M7 lose their inputs")
+  FAILURES+=("Prometheus cannot scrape the demo namespace. M4 and M7 lose their inputs")
 fi
 
 echo

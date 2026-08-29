@@ -13,7 +13,7 @@
 # Keeping both was not defence in depth, because the two layers do not fail independently:
 # a request only reaches Caddy through the tunnel, so anything that satisfies Access has
 # already crossed the only path in. What the shared password added was a second credential
-# handed to every reviewer out-of-band — one more thing to distribute, forget, and never
+# handed to every reviewer out-of-band. One more thing to distribute, forget, and never
 # be able to revoke for one person. It was removed for that reason, not to save a step.
 #
 # This is safe only while Caddy is unreachable except through the tunnel. Its Service is
@@ -28,7 +28,7 @@ data:
   Caddyfile: |
     {
       # Cloudflare terminates TLS at its edge and cloudflared forwards plain HTTP over the
-      # tunnel, so Caddy must not try to obtain certificates of its own — it would fail the
+      # tunnel, so Caddy must not try to obtain certificates of its own. It would fail the
       # ACME challenge, since nothing can reach it directly.
       auto_https off
       # The admin API can reconfigure the server at runtime. Nothing here uses it, and an

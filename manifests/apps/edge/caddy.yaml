@@ -35,12 +35,12 @@ spec:
           type: RuntimeDefault
       # The image ships /usr/bin/caddy with a file capability (cap_net_bind_service=ep).
       # allowPrivilegeEscalation: false sets no_new_privs, and the kernel refuses to exec a
-      # file carrying capabilities while that is set — so the container died with
+      # file carrying capabilities while that is set, so the container died with
       # "exec /usr/bin/caddy: operation not permitted" before Caddy could log anything.
       #
       # Caddy binds 8080 and 8081 here. Both are unprivileged, so the capability the image
       # ships is dead weight in this deployment. Copying the binary drops it, because file
-      # capabilities are not preserved by cp — which keeps every restriction in place rather
+      # capabilities are not preserved by cp, which keeps every restriction in place rather
       # than trading one away. Raising allowPrivilegeEscalation would satisfy the kernel and
       # violate GATE-005's sibling GATE-010, and would be a real loosening to work around a
       # capability that is not even wanted.
@@ -88,7 +88,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 15
           readinessProbe:
-            # A Service routes to this pod, so readiness is required — both by Kubernetes,
+            # A Service routes to this pod, so readiness is required. Both by Kubernetes,
             # to avoid sending traffic to a Caddy still parsing its config, and by the
             # platform's own GATE-006.
             httpGet:

@@ -5,7 +5,7 @@
 # anything not named here.
 #
 # Note what is *absent*: demo-api cannot reach demo-worker, nothing outside the cluster can
-# reach Redis at all, and no other namespace can either — apart from the one that
+# reach Redis at all, and no other namespace can either, apart from the one that
 # genuinely needs to.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -24,7 +24,7 @@ spec:
     - Ingress
   ingress:
     - from:
-        # The producer and the consumer — the only two application components with any
+        # The producer and the consumer, the only two application components with any
         # business talking to the queue.
         - podSelector:
             matchLabels:
@@ -36,7 +36,7 @@ spec:
         # KEDA, and this one is easy to miss.
         #
         # The Redis scaler does not read queue depth through the application or through
-        # Prometheus — the KEDA operator opens its own connection to Redis and runs LLEN
+        # Prometheus, the KEDA operator opens its own connection to Redis and runs LLEN
         # itself. Omitting this rule does not produce an obvious error: the ScaledObject
         # simply stops reporting a metric, the HPA reads "unknown", and the workload quietly
         # stops scaling. M5 would appear broken for a reason that lives entirely in M6.

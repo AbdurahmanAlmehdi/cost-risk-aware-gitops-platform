@@ -1,4 +1,4 @@
-# M1 workload — the producer tier.
+# M1 workload, the producer tier.
 #
 # Fixed replica count on purpose: this is the front door, and holding it constant is
 # what makes M5's effect on the worker tier attributable. If both tiers scaled, a
@@ -28,7 +28,7 @@ spec:
       # Prefer the application node pool, but do not require it.
       #
       # Isolation from the platform tier is enforced by that node's NoSchedule taint,
-      # which these pods do not tolerate — this label was only ever a hint about where
+      # which these pods do not tolerate. This label was only ever a hint about where
       # they belong. As a hard nodeSelector it also made single-node clusters impossible,
       # since one node cannot carry two values of the same label key, so a review host or
       # CI runner could never schedule the application at all.

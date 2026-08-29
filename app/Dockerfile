@@ -1,4 +1,4 @@
-# M1 — build component.
+# M1, build component.
 #
 # One image carries both binaries and the manifests choose between them by command.
 # Two images would double the build, the push, and the number of digests M2 has to
@@ -29,7 +29,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -trimpath -ldflags="-s -w -buildid=" -o /out/worker ./cmd/worker
 
 # --- runtime ----------------------------------------------------------------
-# distroless static: no shell, no package manager, no libc. This is not decoration —
+# distroless static: no shell, no package manager, no libc. This is not decoration -
 # M2's policy sub-gate requires runAsNonRoot and a read-only root filesystem, and this
 # base is what lets the workload satisfy its own platform's rules.
 FROM gcr.io/distroless/static-debian12:nonroot

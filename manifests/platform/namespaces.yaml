@@ -1,6 +1,6 @@
 # Namespaces are platform state, not application state, so they live outside the app
 # directories. An application must never be able to create the namespace that is meant
-# to contain it — that is the boundary M6 isolates on and M4 attributes cost to.
+# to contain it. That is the boundary M6 isolates on and M4 attributes cost to.
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -35,7 +35,7 @@ func cfg(mutate func(*config.Config)) *config.Config {
 }
 
 // delta builds a change with no autoscaling involved, where committed spend and the
-// authorised ceiling are by definition the same number — a workload with no autoscaler is
+// authorised ceiling are by definition the same number, a workload with no autoscaler is
 // committed to every replica it declares.
 func delta(deltaUSD, baseline float64) cost.Delta {
 	d := cost.Delta{
@@ -57,7 +57,7 @@ func delta(deltaUSD, baseline float64) cost.Delta {
 }
 
 // autoscaledDelta builds a change that adds burst headroom without changing committed
-// spend — the shape of adding an autoscaler to an existing workload.
+// spend, the shape of adding an autoscaler to an existing workload.
 func autoscaledDelta(floor, ceiling, baseline float64) cost.Delta {
 	return cost.Delta{
 		BaselineMonthlyUSD:  baseline,
@@ -194,7 +194,7 @@ func TestBlockingViolationFailsAndWarningDoesNot(t *testing.T) {
 }
 
 // TestSeverityOverrideIsApplied covers the graduated-rollout path, and asserts the
-// downgrade is visible in the message — an override that hides itself would let a rule be
+// downgrade is visible in the message, an override that hides itself would let a rule be
 // silently disabled in config while still appearing to be enforced.
 func TestSeverityOverrideIsApplied(t *testing.T) {
 	c := cfg(func(c *config.Config) {
@@ -246,7 +246,7 @@ func TestExcessiveBurstCapacityIsBlocked(t *testing.T) {
 // misses: the dollar figure is small, so only the ratio reveals that peak spend has
 // become a large multiple of steady state.
 func TestBurstRatioCatchesCheapWorkloadsWithHugeMultipliers(t *testing.T) {
-	// $2 idle, $60 at full scale — only $58 of burst, under the $75 cap, but a 30× ratio.
+	// $2 idle, $60 at full scale, only $58 of burst, under the $75 cap, but a 30× ratio.
 	v := verdict.Aggregate(cfg(nil), autoscaledDelta(2.00, 60.00, 2.00), nil, policy.Result{})
 	if v.Decision != verdict.Fail {
 		t.Errorf("a 30x burst ratio passed because the absolute figure looked small: %v", v.Reasons)

@@ -2,13 +2,13 @@
 //
 // It reports every workload on two bases:
 //
-//   - requested — the capacity the scheduler reserved. This is what M2 priced before the
+//   - requested: the capacity the scheduler reserved. This is what M2 priced before the
 //     change merged, so it is directly comparable to the pre-merge estimate.
-//   - actual — what the workload genuinely consumed.
+//   - actual: what the workload genuinely consumed.
 //
 // Reporting both is the point of the module. One number alone answers "what does this
 // cost"; the pair answers "was the estimate right, and how much of what we are paying for
-// is actually being used" — which is the question a FinOps platform exists to answer, and
+// is actually being used", which is the question a FinOps platform exists to answer, and
 // the one neither a pre-merge gate nor a usage dashboard can answer by itself.
 package attribution
 
@@ -122,7 +122,7 @@ func (c *Collector) Collect(ctx context.Context) ([]Cost, error) {
 	for query, meta := range c.queries() {
 		samples, err := c.prom.Query(ctx, query)
 		if err != nil {
-			// One failed query must not discard the three that succeeded — a partial
+			// One failed query must not discard the three that succeeded, a partial
 			// picture is more useful than none, and M4 is a fail-soft data-plane module
 			// (LLD §9.2). The caller records the error so the gap is visible.
 			return nil, fmt.Errorf("query %s/%s: %w", meta.basis, meta.resource, err)

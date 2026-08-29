@@ -3,7 +3,7 @@
 // The gate prices what a manifest *requests*, not what it will use. Requests are what the
 // scheduler reserves and therefore what determines how much capacity must exist; usage is
 // unknowable before the workload has ever run. Where the two diverge, M4 makes the gap
-// visible after deploy — the gate cannot see it in advance and does not pretend to.
+// visible after deploy, the gate cannot see it in advance and does not pretend to.
 package cost
 
 import (
@@ -40,7 +40,7 @@ type Workload struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	// Replicas is the count the workload is priced at. For an autoscaled workload this
-	// is the ceiling, not the current value — see MaxReplicas.
+	// is the ceiling, not the current value, see MaxReplicas.
 	Replicas   int       `json:"replicas"`
 	PerReplica Resources `json:"per_replica"`
 	Total      Resources `json:"total"`
@@ -51,7 +51,7 @@ type Workload struct {
 	Autoscaled  bool `json:"autoscaled,omitempty"`
 	MinReplicas int  `json:"min_replicas,omitempty"`
 	MaxReplicas int  `json:"max_replicas,omitempty"`
-	// FloorMonthlyUSD is the cost at the autoscaler's minimum — what this workload
+	// FloorMonthlyUSD is the cost at the autoscaler's minimum, what this workload
 	// costs when nothing is happening.
 	FloorMonthlyUSD float64 `json:"floor_monthly_usd,omitempty"`
 	// Flags record every assumption made while pricing this workload. They are carried
@@ -71,7 +71,7 @@ func (w Workload) Ref() string {
 //
 // Two totals, because elastic spend and committed spend are different commitments and
 // judging them by one number gets both wrong. A workload that idles at one replica and
-// can burst to six commits you to the first and merely authorises the second — treating
+// can burst to six commits you to the first and merely authorises the second, treating
 // that as a sixfold cost increase would make autoscaling impossible to adopt, while
 // treating it as no increase at all would let anyone authorise unbounded spend for free.
 type Estimate struct {
@@ -136,7 +136,7 @@ func (c *Calculator) collectAutoscalers(objects []Object) map[scaleTarget]autosc
 			}
 			if _, ok := spec["maxReplicaCount"]; !ok {
 				bounds.flags = append(bounds.flags, fmt.Sprintf(
-					"the ScaledObject sets no maxReplicaCount, so KEDA's default of %d applies — "+
+					"the ScaledObject sets no maxReplicaCount, so KEDA's default of %d applies - "+
 						"this authorises up to %d replicas", kedaDefaultMaxReplicas, kedaDefaultMaxReplicas))
 			}
 			found[target] = bounds
@@ -179,7 +179,7 @@ func (c *Calculator) Estimate(objects []Object) (Estimate, error) {
 
 	// Autoscalers are collected first because they change how the workloads they target
 	// are priced. A KEDA ScaledObject or an HPA is the single largest cost decision in a
-	// repository — it authorises a ceiling — while touching no `replicas:` field at all.
+	// repository. It authorises a ceiling, while touching no `replicas:` field at all.
 	// Pricing the Deployment's literal replica count would report the cost of the
 	// quietest possible moment and call it the cost of the change.
 	c.autoscalers = c.collectAutoscalers(objects)
@@ -280,7 +280,7 @@ func (c *Calculator) price(obj Object) (Workload, bool, error) {
 
 	case "Job", "CronJob":
 		// Deliberately not priced. A Job's cost is its resources multiplied by how long
-		// it runs and how often it is triggered — neither is knowable from the manifest.
+		// it runs and how often it is triggered. Neither is knowable from the manifest.
 		// Reporting a confident figure here would be a guess wearing the same formatting
 		// as the numbers that are actually derived.
 		w.Replicas = 0
@@ -295,7 +295,7 @@ func (c *Calculator) price(obj Object) (Workload, bool, error) {
 	}
 
 	// An autoscaler overrides the manifest's replica count, because once one exists the
-	// number in the Deployment is only the starting point — the autoscaler owns the value
+	// number in the Deployment is only the starting point, the autoscaler owns the value
 	// from then on, and M3 is configured to stop reverting it.
 	//
 	// The workload is priced at the CEILING. A budget has to cover what a change
@@ -322,7 +322,7 @@ func (c *Calculator) price(obj Object) (Workload, bool, error) {
 	w.Total = w.PerReplica.scale(float64(w.Replicas))
 	w.MonthlyUSD = c.table.MonthlyUSD(w.Total.CPUCores, w.Total.MemoryGiB, w.Total.StorageGiB)
 
-	// A workload with no autoscaler is committed to its full cost — the floor and the
+	// A workload with no autoscaler is committed to its full cost, the floor and the
 	// ceiling are the same number. Leaving the floor at zero here would make every
 	// static workload look free in the committed total.
 	if !w.Autoscaled {

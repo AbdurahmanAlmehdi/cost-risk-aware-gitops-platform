@@ -1,4 +1,4 @@
-# The shared work queue — the stateful component the platform is built to protect.
+# The shared work queue, the stateful component the platform is built to protect.
 #
 # Placement is deliberate: Redis is pinned to the platform node, which carries a
 # NoSchedule taint that application workloads do not tolerate. M5 can therefore scale

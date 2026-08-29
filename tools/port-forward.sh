@@ -3,13 +3,13 @@
 #
 # The kind cluster maps these through the host automatically (platform/kind/cluster.yaml);
 # a managed cluster has no such mapping, so the same ports are forwarded instead. Keeping
-# the port numbers identical means every other tool — the load test, the reconciliation
-# check, the demo script — works unchanged on both.
+# the port numbers identical means every other tool, the load test, the reconciliation
+# check, the demo script, works unchanged on both.
 #
 # Port-forwarding rather than LoadBalancers is deliberate for a demonstration cluster:
 # three LoadBalancers cost more per month than the nodes, and nothing here needs to be
 # reachable by anyone but the presenter. For a URL a supervisor can visit unattended, add
-# a Cloudflare Tunnel — see docs/DEPLOY-DOKS.md.
+# a Cloudflare Tunnel, see docs/DEPLOY-DOKS.md.
 set -euo pipefail
 
 declare -a PIDS=()

@@ -1,4 +1,4 @@
-# M7 — Observability.
+# M7: Observability.
 #
 # Delivered through ArgoCD rather than installed by hand, so the monitoring stack is as
 # declarative as the workloads it monitors. ArgoCD itself is the only exception: something
@@ -31,7 +31,7 @@ spec:
         defaultRules:
           create: false
 
-        # Node-level hardware metrics are not what this platform attributes cost from —
+        # Node-level hardware metrics are not what this platform attributes cost from -
         # M4 works per workload, from container metrics the kubelet already exposes.
         # A DaemonSet on every node would cost more than the insight it adds here.
         nodeExporter:
@@ -48,7 +48,7 @@ spec:
 
         # kube-state-metrics is NOT optional here. It is the only source of
         # kube_pod_container_resource_requests, which is what lets M4 price *reserved*
-        # capacity and compare it against actual usage — the gap that the whole
+        # capacity and compare it against actual usage, the gap that the whole
         # prediction-versus-reality argument rests on.
         kube-state-metrics:
           nodeSelector:
@@ -76,7 +76,7 @@ spec:
                 effect: NoSchedule
             # By default the operator only adopts monitors carrying its own release
             # label. The platform's PodMonitors live in manifests/ and are written by
-            # hand, so that restriction would silently ignore every one of them — the
+            # hand, so that restriction would silently ignore every one of them, the
             # workloads would appear to have no metrics at all.
             podMonitorSelectorNilUsesHelmValues: false
             serviceMonitorSelectorNilUsesHelmValues: false

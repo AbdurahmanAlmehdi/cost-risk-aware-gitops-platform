@@ -2,7 +2,7 @@
 //
 // The aggregation rule is deliberately simple and stated in one place: a pull request
 // passes if and only if both sub-gates pass. Anything that could not be evaluated is
-// treated as a failure, never as a pass — the gate is the last thing standing between a
+// treated as a failure, never as a pass, the gate is the last thing standing between a
 // change and production, and "we could not tell" must never open it (LLD §2.5, §9.2).
 package verdict
 
@@ -35,7 +35,7 @@ type Verdict struct {
 	// order they should be read.
 	Reasons []string `json:"reasons,omitempty"`
 	// Notes are caveats about the evaluation itself rather than findings about the
-	// change — conditions the reader needs in order to know how much the verdict is
+	// change, conditions the reader needs in order to know how much the verdict is
 	// worth.
 	Notes []string `json:"notes,omitempty"`
 
@@ -122,7 +122,7 @@ func evaluateCost(cfg config.CostConfig, delta cost.Delta, errors []string) Cost
 	}
 
 	// Elastic headroom is judged first and separately. It is spend the change
-	// *authorises* rather than commits to, so it gets its own budget — see
+	// *authorises* rather than commits to, so it gets its own budget, see
 	// config.AutoscalingBudget for why one budget cannot serve both.
 	evaluateAutoscaling(cfg.Autoscaling, delta, &cv)
 
@@ -134,8 +134,8 @@ func evaluateCost(cfg config.CostConfig, delta cost.Delta, errors []string) Cost
 	checkAbsolute := cfg.Mode == config.ModeAbsolute || cfg.Mode == config.ModeBoth
 	checkPercent := cfg.Mode == config.ModePercent || cfg.Mode == config.ModeBoth
 
-	// Percentage is undefined against a zero baseline. Rather than skip the check —
-	// which would let an unlimited new workload through in percent mode — the absolute
+	// Percentage is undefined against a zero baseline. Rather than skip the check -
+	// which would let an unlimited new workload through in percent mode, the absolute
 	// threshold stands in, and the report says that is what happened.
 	if checkPercent && !delta.HasCommittedBasis {
 		checkPercent = false
@@ -176,7 +176,7 @@ func evaluateCost(cfg config.CostConfig, delta cost.Delta, errors []string) Cost
 	return cv
 }
 
-// evaluateAutoscaling judges elastic headroom — spend a change authorises but does not
+// evaluateAutoscaling judges elastic headroom, spend a change authorises but does not
 // commit to.
 func evaluateAutoscaling(cfg config.AutoscalingBudget, delta cost.Delta, cv *CostVerdict) {
 	// Burst headroom is the gap between what the change authorises and what it commits
@@ -190,7 +190,7 @@ func evaluateAutoscaling(cfg config.AutoscalingBudget, delta cost.Delta, cv *Cos
 		cv.Passed = false
 		cv.Fired = append(cv.Fired, fmt.Sprintf(
 			"this change authorises $%.2f/month of additional burst capacity, above the $%.2f "+
-				"limit — the workload would not normally cost this, but nothing would stop it",
+				"limit, the workload would not normally cost this, but nothing would stop it",
 			ceilingDelta, cfg.MaxCeilingDeltaUSD))
 	} else if cfg.WarnCeilingDeltaUSD > 0 && ceilingDelta > cfg.WarnCeilingDeltaUSD {
 		cv.Warned = true

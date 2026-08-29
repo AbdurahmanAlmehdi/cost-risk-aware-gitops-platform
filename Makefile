@@ -22,10 +22,10 @@ help: ## Show available targets
 		| awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 # -----------------------------------------------------------------------------
-# M0 — cluster substrate
+# M0, cluster substrate
 # -----------------------------------------------------------------------------
 .PHONY: cluster-up
-cluster-up: ## Create the kind cluster (no CNI yet — nodes stay NotReady until `make cni`)
+cluster-up: ## Create the kind cluster (no CNI yet, nodes stay NotReady until `make cni`)
 	@kind get clusters 2>/dev/null | grep -qx '$(CLUSTER_NAME)' \
 		&& echo "cluster '$(CLUSTER_NAME)' already exists" \
 		|| kind create cluster --config $(KIND_CONFIG)
@@ -33,7 +33,7 @@ cluster-up: ## Create the kind cluster (no CNI yet — nodes stay NotReady until
 .PHONY: cni
 cni: ## Install Calico and wait for nodes to become Ready
 	# As of Calico v3.32 the operator's CRDs ship in their own manifest and are no
-	# longer bundled with the operator Deployment. They must be applied first —
+	# longer bundled with the operator Deployment. They must be applied first -
 	# applying the Installation CR before its CRD exists fails with a bare NotFound.
 	kubectl apply --server-side --force-conflicts \
 		-f https://raw.githubusercontent.com/projectcalico/calico/$(CALICO_VERSION)/manifests/operator-crds.yaml
@@ -66,7 +66,7 @@ cluster-status: ## Show node and system-pod state
 		| grep -v Completed || echo "all pods Running or Completed"
 
 # -----------------------------------------------------------------------------
-# AWS review host — start it to review, stop it after
+# AWS review host, start it to review, stop it after
 # -----------------------------------------------------------------------------
 .PHONY: demo-host-start demo-host-stop demo-host-status demo-host-allow
 demo-host-start: ## Start the AWS review host (billing resumes)
@@ -87,7 +87,7 @@ demo-host-allow: ## Grant a reviewer access: make demo-host-allow IP=1.2.3.4
 	done
 
 # -----------------------------------------------------------------------------
-# Managed cluster (DigitalOcean) — the demonstration environment
+# Managed cluster (DigitalOcean), the demonstration environment
 # -----------------------------------------------------------------------------
 .PHONY: doks-up
 doks-up: ## Provision the DOKS cluster and verify its CNI enforces NetworkPolicy
@@ -102,7 +102,7 @@ doks-forward: ## Forward Grafana, ArgoCD and the demo API to their usual local p
 	@bash tools/port-forward.sh
 
 # -----------------------------------------------------------------------------
-# Edge — tunnel and authenticated routing
+# Edge, tunnel and authenticated routing
 # -----------------------------------------------------------------------------
 .PHONY: edge-secrets
 edge-secrets: ## Install the tunnel token into the cluster
@@ -113,7 +113,7 @@ edge-routes: ## Point the three hostnames at the tunnel (only after auth is veri
 	@bash tools/edge-routes.sh
 
 # -----------------------------------------------------------------------------
-# M3 — GitOps delivery
+# M3: GitOps delivery
 # -----------------------------------------------------------------------------
 ARGOCD_CHART_VERSION := 10.3.3
 REPO_URL := https://github.com/AbdurahmanAlmehdi/cost-risk-aware-gitops-platform.git
@@ -133,7 +133,7 @@ argocd: ## Install ArgoCD onto the platform node
 .PHONY: argocd-repo-secret
 argocd-repo-secret: ## Grant ArgoCD read access to this repository
 	# The credential is read from the local gh CLI and written straight into the cluster.
-	# It is never committed, never echoed, and never leaves this machine — the cluster is
+	# It is never committed, never echoed, and never leaves this machine, the cluster is
 	# local and disposable. Real deployments would use SOPS or a sealed-secrets
 	# controller so the encrypted secret could itself live in Git.
 	@kubectl create secret generic repo-gitops-platform \
@@ -169,7 +169,7 @@ image-digests: ## Rewrite pinned digests from published ones (DIGESTS=<dir of im
 	@bash tools/bump-digests.sh $${DIGESTS:?usage: make image-digests DIGESTS=<dir>}
 
 # -----------------------------------------------------------------------------
-# M2 — pre-merge gate
+# M2, pre-merge gate
 # -----------------------------------------------------------------------------
 .PHONY: gate-build
 gate-build: ## Build the gate binary
@@ -188,7 +188,7 @@ cost: gate-build ## Price the manifests as they stand, with no comparison
 	./bin/gate price --config gate.yaml
 
 # -----------------------------------------------------------------------------
-# M4 / M7 — cost attribution and observability
+# M4 / M7, cost attribution and observability
 # -----------------------------------------------------------------------------
 .PHONY: reconcile
 reconcile: gate-build ## Check M2's pre-merge estimate against M4's live measurement

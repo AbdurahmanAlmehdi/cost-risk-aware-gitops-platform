@@ -2,7 +2,7 @@
 #
 # These are the "no overly permissive privilege settings" half of the LLD's policy sub-gate.
 # They pair with M6: M6 restricts what a workload may talk to, and these restrict what a
-# workload may do on the node it lands on. Neither is sufficient alone — network isolation
+# workload may do on the node it lands on. Neither is sufficient alone, network isolation
 # does not help if a container can escape to the host, and a locked-down container is still
 # dangerous if it can reach every database in the cluster.
 package gate

@@ -1,6 +1,6 @@
 // Command gate is M2: the pre-merge cost and policy gate.
 //
-// It is a pure decision engine. It reads Git, renders manifests, decides, and prints —
+// It is a pure decision engine. It reads Git, renders manifests, decides, and prints -
 // it does not talk to GitHub and it holds no cluster credentials. Delivery of the verdict
 // (the pull-request comment and the status check) belongs to the CI workflow, so that a
 // GitHub API failure can never change a verdict, and the whole decision path can be run
@@ -9,8 +9,8 @@
 // Exit codes are the contract with CI:
 //
 //	0  pass
-//	1  fail          — a threshold or blocking policy fired
-//	2  inconclusive  — the gate could not evaluate; blocks exactly like a failure
+//	1  fail, a threshold or blocking policy fired
+//	2  inconclusive, the gate could not evaluate; blocks exactly like a failure
 package main
 
 import (
@@ -156,7 +156,7 @@ func evaluateCmd() {
 	code, err := run(context.Background(), *configPath, *repoPath, *base, *head, *format, *outputPath)
 	if err != nil {
 		// An error here means the gate itself failed. It is reported on stderr and
-		// exits inconclusive, which blocks — never passes — the pull request.
+		// exits inconclusive, which blocks, never passes, the pull request.
 		fmt.Fprintf(os.Stderr, "gate: %v\n", err)
 		os.Exit(exitInconclusive)
 	}
@@ -198,7 +198,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 	// is invisible to it. Locally that turns an unstaged change into a confident pass.
 	if dirty, dirtyErr := repo.UncommittedChanges(cfg.Spec.Paths.Manifests); dirtyErr == nil && len(dirty) > 0 {
 		v.Notes = append(v.Notes, fmt.Sprintf(
-			"%d uncommitted manifest change(s) were NOT evaluated — the gate compares commits. "+
+			"%d uncommitted manifest change(s) were NOT evaluated, the gate compares commits. "+
 				"Commit them and re-run, or this verdict does not describe your working tree.",
 			len(dirty)))
 	}
@@ -228,7 +228,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 
 	// Each side is priced with its own rate table, so a change to the rates shows up as a
 	// real cost delta. Pricing both sides from one table would make a repricing of the
-	// entire estate report as $0.00 — the two figures would differ only by whatever else
+	// entire estate report as $0.00, the two figures would differ only by whatever else
 	// the pull request happened to touch.
 	baseTable, headTable, pricingNote, err := loadPricingTables(baseTree, headTree, cfg.Spec.Paths.Pricing)
 	if err != nil {
@@ -259,7 +259,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		roots = allRoots
 		v.Notes = append(v.Notes, fmt.Sprintf(
 			"the pricing table changed (v%d → v%d), so **every** manifest root was re-priced, "+
-				"not only the ones this pull request edits — a rate change alters the cost of "+
+				"not only the ones this pull request edits, a rate change alters the cost of "+
 				"everything the platform runs.",
 			baseTable.Metadata.Version, headTable.Metadata.Version))
 	}
@@ -290,7 +290,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		headObjs, err := render.Dir(root)
 		if err != nil {
 			// A manifest that cannot be rendered has not been shown to be safe. It is
-			// recorded as an evaluation error, which blocks — rendering failures are
+			// recorded as an evaluation error, which blocks, rendering failures are
 			// exactly the case where guessing would be most dangerous.
 			costErrors = append(costErrors, fmt.Sprintf("rendering %s at head: %v", rel, err))
 			continue
@@ -327,7 +327,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 		// threshold still applies, which is a narrower gate but not a broken one.
 		v.Notes = append(v.Notes, fmt.Sprintf(
 			"could not price the full estate at the base commit (%v), so no percentage "+
-				"threshold was applied — only the absolute limit.", estateErr))
+				"threshold was applied, only the absolute limit.", estateErr))
 	}
 
 	delta := cost.Compare(baseEstimate, headEstimate, estateBaseline)
@@ -357,7 +357,7 @@ func run(ctx context.Context, configPath, repoPath, base, head, format, outputPa
 
 // loadPricingTables reads the rate table as it exists on each side of the comparison.
 //
-// The base table may legitimately be absent — the pull request that first introduces a
+// The base table may legitimately be absent, the pull request that first introduces a
 // pricing table has no earlier version to compare against. In that case the head table
 // stands in for both sides and the substitution is reported, because silently pricing the
 // baseline with new rates would make an unrelated repricing look like a free change.

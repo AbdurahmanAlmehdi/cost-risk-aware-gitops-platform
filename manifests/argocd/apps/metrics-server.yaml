@@ -1,4 +1,4 @@
-# The resource metrics API — the source behind M5's fallback scaling trigger.
+# The resource metrics API, the source behind M5's fallback scaling trigger.
 #
 # Kubernetes does not ship this, and kind does not add it, so `kubectl top` and any HPA
 # CPU target read "unknown" on a stock cluster. That is precisely the state M5's CPU
@@ -29,7 +29,7 @@ spec:
         args:
           # kind's kubelets serve their metrics endpoint with certificates signed by the
           # cluster CA but issued for names metrics-server cannot verify. Without this it
-          # fails every scrape with an x509 error and reports no metrics at all — the
+          # fails every scrape with an x509 error and reports no metrics at all, the
           # single most common reason metrics-server appears installed but never works.
           # Acceptable here because the traffic never leaves the node's own network.
           - --kubelet-insecure-tls

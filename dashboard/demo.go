@@ -2,7 +2,7 @@ package main
 
 // The two demonstrations the dashboard can drive, and the status it reports between them.
 //
-// Each one mirrors a script in tools/ — drift-test.sh and load-test.sh — and deliberately
+// Each one mirrors a script in tools/, drift-test.sh and load-test.sh, and deliberately
 // keeps that script's *assertions*, not only its narration. A dashboard that reported
 // "scaled up" without checking the backlog drained would be a worse demonstration than the
 // terminal it replaces, because it would look more authoritative while proving less.
@@ -141,7 +141,7 @@ func (k *kube) bounds(ctx context.Context, ns, name string) (minR, maxR int, err
 		maxR = *s.Spec.MaxReplicaCount
 	}
 	if maxR == 0 {
-		return 0, 0, fmt.Errorf("no ScaledObject bounds for %s/%s — is M5 deployed?", ns, name)
+		return 0, 0, fmt.Errorf("no ScaledObject bounds for %s/%s, is M5 deployed?", ns, name)
 	}
 	return minR, maxR, nil
 }
@@ -183,7 +183,7 @@ func (k *kube) argoApps(ctx context.Context) ([]argoApp, error) {
 }
 
 // -----------------------------------------------------------------------------
-// The demo API — the queue's front door
+// The demo API, the queue's front door
 // -----------------------------------------------------------------------------
 
 type demoAPI struct {

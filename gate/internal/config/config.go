@@ -2,7 +2,7 @@
 //
 // Nothing that changes a verdict is compiled into the binary. A reviewer must be able to
 // see, in the repository, every threshold and rule that caused their pull request to be
-// blocked — and change it through the same review process as any other change (LLD §9.1).
+// blocked, and change it through the same review process as any other change (LLD §9.1).
 package config
 
 import (
@@ -60,7 +60,7 @@ type CostConfig struct {
 //
 // The thresholds above apply to the floor: spend the change commits to unconditionally.
 // These apply to the ceiling: spend it authorises under load. Judging both by one budget
-// gets both wrong — a percentage cap tight enough to catch a careless replica bump makes
+// gets both wrong, a percentage cap tight enough to catch a careless replica bump makes
 // any autoscaler unadoptable, since elasticity's whole purpose is a large ratio between
 // idle and peak.
 type AutoscalingBudget struct {
@@ -70,7 +70,7 @@ type AutoscalingBudget struct {
 	// WarnCeilingDeltaUSD reports without blocking.
 	WarnCeilingDeltaUSD float64 `json:"warnCeilingDeltaUSD"`
 	// MaxBurstRatio caps how many times its committed cost a workload may burst to.
-	// An unbounded ratio is how a workload ends up idling at $2 and capable of $2,000 —
+	// An unbounded ratio is how a workload ends up idling at $2 and capable of $2,000 -
 	// each individual change looking reasonable on its own.
 	MaxBurstRatio float64 `json:"maxBurstRatio"`
 }
@@ -86,7 +86,7 @@ type PolicyConfig struct {
 	// SeverityOverrides downgrades (or upgrades) individual rules without editing the
 	// rule itself. This exists so a new rule can be introduced as a warning, observed
 	// against real pull requests, and promoted to blocking once the manifests it
-	// governs actually comply — rather than landing as a block that fails every open
+	// governs actually comply, rather than landing as a block that fails every open
 	// PR the day it merges. The override is recorded in the report, so a downgraded
 	// rule is never invisible.
 	SeverityOverrides    map[string]string `json:"severityOverrides,omitempty"`
@@ -131,7 +131,7 @@ func Load(path string) (*Config, error) {
 	var cfg Config
 	// UnmarshalStrict rejects unknown fields. A typo in a threshold name would
 	// otherwise be silently ignored, and the gate would enforce a default the author
-	// never chose — the most dangerous kind of misconfiguration, because it looks
+	// never chose, the most dangerous kind of misconfiguration, because it looks
 	// like it is working.
 	if err := yaml.UnmarshalStrict(raw, &cfg); err != nil {
 		return nil, fmt.Errorf("parse gate config %s: %w", path, err)
@@ -158,7 +158,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("spec.cost.block.maxPercentIncrease must be > 0 in mode %q", c.Spec.Cost.Mode)
 	}
 
-	// A warn threshold at or above the blocking one can never fire — it would be dead
+	// A warn threshold at or above the blocking one can never fire. It would be dead
 	// configuration that reads as if warnings were enabled.
 	if c.Spec.Cost.Warn.MaxMonthlyDeltaUSD >= c.Spec.Cost.Block.MaxMonthlyDeltaUSD &&
 		c.Spec.Cost.Warn.MaxMonthlyDeltaUSD > 0 {

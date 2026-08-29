@@ -27,9 +27,9 @@ func Markdown(v verdict.Verdict) string {
 	case verdict.Pass:
 		b.WriteString("✅ Gate passed")
 	case verdict.Fail:
-		b.WriteString("❌ Gate failed — merge blocked")
+		b.WriteString("❌ Gate failed, merge blocked")
 	case verdict.Inconclusive:
-		b.WriteString("⚠️ Gate inconclusive — merge blocked")
+		b.WriteString("⚠️ Gate inconclusive, merge blocked")
 	}
 	b.WriteString("\n\n")
 
@@ -67,7 +67,7 @@ func writeCost(b *strings.Builder, v verdict.Verdict) {
 	if !v.Cost.Passed {
 		status = "**failed**"
 	}
-	fmt.Fprintf(b, "### Cost — %s\n\n", status)
+	fmt.Fprintf(b, "### Cost - %s\n\n", status)
 
 	// Committed and authorised are shown side by side because they are different
 	// promises. Committed is what the change costs with nothing happening; authorised is
@@ -88,7 +88,7 @@ func writeCost(b *strings.Builder, v verdict.Verdict) {
 	b.WriteString("\n")
 
 	if burst := d.DeltaMonthlyUSD - d.CommittedDeltaUSD; burst > 0 {
-		fmt.Fprintf(b, "This change adds **%s/month of burst capacity** — spend it authorises "+
+		fmt.Fprintf(b, "This change adds **%s/month of burst capacity**, spend it authorises "+
 			"under load but does not commit to.\n\n", money(burst))
 	}
 
@@ -131,7 +131,7 @@ func writePolicy(b *strings.Builder, v verdict.Verdict) {
 	if !v.Policy.Passed {
 		status = "**failed**"
 	}
-	fmt.Fprintf(b, "### Policy — %s\n\n", status)
+	fmt.Fprintf(b, "### Policy - %s\n\n", status)
 
 	if len(v.Policy.Blocking) == 0 && len(v.Policy.Warnings) == 0 && len(v.Policy.Errors) == 0 {
 		b.WriteString("No violations.\n\n")
@@ -152,7 +152,7 @@ func writePolicy(b *strings.Builder, v verdict.Verdict) {
 	if len(v.Policy.Warnings) > 0 {
 		b.WriteString("<details><summary>Warnings (not blocking)</summary>\n\n")
 		for _, viol := range v.Policy.Warnings {
-			fmt.Fprintf(b, "- `%s` on `%s` — %s\n", viol.Rule, viol.Ref(), viol.Message)
+			fmt.Fprintf(b, "- `%s` on `%s` - %s\n", viol.Rule, viol.Ref(), viol.Message)
 		}
 		b.WriteString("\n</details>\n\n")
 	}
@@ -168,7 +168,7 @@ func writePolicy(b *strings.Builder, v verdict.Verdict) {
 
 // writeAssumptions surfaces every assumption the estimate rests on.
 //
-// These are not hidden behind a details block by accident of formatting — they are the
+// These are not hidden behind a details block by accident of formatting. They are the
 // difference between a figure a reviewer can challenge and a figure they must simply
 // believe. A gate that blocks merges owes the author its reasoning.
 func writeAssumptions(b *strings.Builder, v verdict.Verdict) {
@@ -197,7 +197,7 @@ func writeProvenance(b *strings.Builder, v verdict.Verdict) {
 	b.WriteString("---\n\n")
 	fmt.Fprintf(b, "Cost is modelled from reserved **requests**, priced with pricing table v%d (%s). ",
 		v.PricingVersion, v.PricingSource)
-	b.WriteString("The cluster is local, so no money is actually spent — these figures model what the " +
+	b.WriteString("The cluster is local, so no money is actually spent, these figures model what the " +
 		"same workload would cost on a cloud provider, and M4 measures live consumption against the " +
 		"same rates after deploy.\n\n")
 

@@ -30,7 +30,7 @@ both KEDA and the application read demand from the same key (`jobs:pending`).
   protecting with an allow-list, M4 gets a second workload with a different cost profile,
   and the taint/affinity requirement gets a stateful workload to isolate.
 - Adds a stateful component. Contained by pinning Redis to the tainted platform node, which
-  application workloads do not tolerate — so M5 can scale workers from 1 to 20 without ever
+  application workloads do not tolerate, so M5 can scale workers from 1 to 20 without ever
   contending with the queue they depend on.
 - Redis runs single-replica with persistence disabled. It is working state, not a database:
   a second replica would be a second queue and make depth ambiguous, and restoring a stale

@@ -3,7 +3,7 @@
 #
 # This closes the gap that made application code the one change type that never reached the
 # cluster. A manifest change merges and ArgoCD applies it; a Go change merges, CI publishes
-# a new image, and nothing updates the digest that would deploy it — so a new image existed
+# a new image, and nothing updates the digest that would deploy it, so a new image existed
 # that nothing referenced.
 #
 # The fix is deliberately NOT ArgoCD Image Updater writing to the cluster or to main. That
@@ -23,8 +23,8 @@ if [ -z "$DIGEST_DIR" ] || [ ! -d "$DIGEST_DIR" ]; then
   exit 2
 fi
 
-# Only images published from this repository are ever rewritten. Third-party images — redis,
-# caddy, cloudflared — are pinned to digests chosen deliberately, and an automated bump has
+# Only images published from this repository are ever rewritten. Third-party images, redis,
+# caddy, cloudflared, are pinned to digests chosen deliberately, and an automated bump has
 # no business moving them: nothing here builds them, so nothing here knows what changed.
 REGISTRY_PREFIX=${REGISTRY_PREFIX:-ghcr.io/abdurahmanalmehdi/cost-risk-aware-gitops-platform}
 MANIFEST_GLOB=${MANIFEST_GLOB:-manifests/apps/*/kustomization.yaml}

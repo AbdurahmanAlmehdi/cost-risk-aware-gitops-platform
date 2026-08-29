@@ -2,7 +2,7 @@
 #
 # These are the rules that make the cost sub-gate meaningful. A container with no
 # requests cannot be priced from its manifest, so without this rule the cheapest possible
-# change — declaring nothing — would also be the one the cost gate waves through.
+# change, declaring nothing, would also be the one the cost gate waves through.
 # Requests and cost governance are the same concern viewed twice.
 package gate
 
@@ -30,7 +30,7 @@ violation contains v if {
 
 # Memory is limited but CPU deliberately is not.
 #
-# Exceeding a memory limit gets the container OOMKilled — there is no graceful
+# Exceeding a memory limit gets the container OOMKilled. There is no graceful
 # degradation, so an unbounded container can take down its node. Exceeding a CPU limit
 # only throttles, and a CPU limit set too low degrades latency in a way that is very hard
 # to diagnose. So memory limits are required and CPU limits are left to the author.
@@ -46,7 +46,7 @@ violation contains v if {
 }
 
 # A request far below the limit means the scheduler reserves far less than the workload
-# may actually use. The pod is billed and planned as small, then behaves as large — which
+# may actually use. The pod is billed and planned as small, then behaves as large, which
 # is precisely the gap between predicted and live cost that this platform exists to expose.
 violation contains v if {
 	some c in containers
@@ -56,7 +56,7 @@ violation contains v if {
 	v := {
 		"rule": "GATE-004",
 		"severity": "warn",
-		"message": sprintf("container %q requests %s of memory but may use up to %s — more than a 4× gap", [c.name, c.resources.requests.memory, c.resources.limits.memory]),
+		"message": sprintf("container %q requests %s of memory but may use up to %s, more than a 4× gap", [c.name, c.resources.requests.memory, c.resources.limits.memory]),
 		"remediation": "Raise the request or lower the limit. A wide gap means the pre-merge cost estimate understates what this workload can actually consume.",
 	}
 }

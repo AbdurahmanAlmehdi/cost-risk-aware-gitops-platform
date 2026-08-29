@@ -12,7 +12,7 @@ resources:
 # NetworkPolicy brought this directory into the gate's scope. That is inherent to a
 # diff-scoped gate: it evaluates what a change touches, so an untouched manifest can carry
 # a violation until someone next edits its directory. Worth knowing rather than being
-# surprised by — the alternative, re-evaluating every manifest on every pull request,
+# surprised by, the alternative, re-evaluating every manifest on every pull request,
 # would report findings nobody in that review can act on.
 images:
   - name: redis

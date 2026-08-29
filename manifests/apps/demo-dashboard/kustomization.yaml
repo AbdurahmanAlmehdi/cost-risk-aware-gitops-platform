@@ -6,11 +6,11 @@ kind: Kustomization
 # This is the one component whose resources deliberately span three namespaces: the
 # workload runs in edge, but its Roles and RoleBindings must be created in demo and argocd,
 # because that is where the resources they grant access to live. A `namespace: edge`
-# directive rewrites all of them to edge — which collapses the two Roles into one name and
+# directive rewrites all of them to edge, which collapses the two Roles into one name and
 # produces a build-time ID conflict, and would otherwise have granted nothing at all.
 # Every file below states its own namespace explicitly instead.
 
-# Every file listed explicitly — kustomize ignores what it is not told about, silently,
+# Every file listed explicitly, kustomize ignores what it is not told about, silently,
 # which has already cost this project one dashboard that deployed and did nothing.
 resources:
   - rbac.yaml

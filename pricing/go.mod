@@ -2,8 +2,8 @@
 //
 // Both the control plane (M2, pricing manifests before merge) and the data plane (M4,
 // pricing live usage after deploy) depend on it, and neither depends on the other. A
-// shared leaf module is what keeps that dependency graph honest: the alternative — the
-// cost exporter importing the gate — would make a data-plane component depend on a
+// shared leaf module is what keeps that dependency graph honest: the alternative, the
+// cost exporter importing the gate, would make a data-plane component depend on a
 // control-plane one purely to borrow a rate table.
 module github.com/AbdurahmanAlmehdi/gitops-platform/pricing
 

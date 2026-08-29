@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: observability
 
 # Every file has to be listed here. kustomize ignores anything it is not told about,
-# silently and without warning — a manifest can be committed, reviewed, merged and
+# silently and without warning, a manifest can be committed, reviewed, merged and
 # deployed while doing absolutely nothing, because nothing ever reads it.
 resources:
   - deployment.yaml
@@ -12,7 +12,7 @@ resources:
 
 # The pricing table is delivered to the cluster as a ConfigMap generated from the very
 # same file M2 reads to price pull requests. It lives inside this kustomize root because
-# kustomize refuses to read files outside its root — and a copy kept elsewhere would be a
+# kustomize refuses to read files outside its root, and a copy kept elsewhere would be a
 # second source of truth, which is the one thing this table must never have.
 #
 # The generated name carries a content hash, so editing a rate produces a new ConfigMap

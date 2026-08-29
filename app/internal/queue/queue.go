@@ -23,7 +23,7 @@ import (
 const Key = "jobs:pending"
 
 // Job is the unit of work. EnqueuedAt travels with the job so the worker can report
-// queueing delay — the consumer is the only party that knows when the wait ended.
+// queueing delay, the consumer is the only party that knows when the wait ended.
 type Job struct {
 	ID         string    `json:"id"`
 	DurationMS int       `json:"duration_ms"`
@@ -32,7 +32,7 @@ type Job struct {
 
 // ErrEmpty is returned by Dequeue when the blocking pop timed out with no work.
 // This is an ordinary idle condition, not a failure, and callers must not treat it
-// as one — a worker that logged an error every idle second would bury real faults.
+// as one, a worker that logged an error every idle second would bury real faults.
 var ErrEmpty = errors.New("queue: empty")
 
 type Queue struct {
@@ -51,7 +51,7 @@ func New(addr, password string) *Queue {
 
 		// Maintenance notifications are a Redis Cloud feature. The client's default
 		// "auto" mode probes for it on every connection, and self-hosted Redis rejects
-		// the probe — harmless, but it logs an error-shaped line on each reconnect.
+		// the probe, harmless, but it logs an error-shaped line on each reconnect.
 		// Disabling it keeps the logs free of failures that are not failures, which
 		// matters when the logs are shown during a demonstration.
 		MaintNotificationsConfig: &maintnotifications.Config{
@@ -82,7 +82,7 @@ func (q *Queue) Enqueue(ctx context.Context, job Job) error {
 }
 
 // Dequeue blocks for up to timeout waiting for a job. Blocking rather than polling
-// keeps an idle worker's CPU — and therefore its attributed cost in M4 — near zero,
+// keeps an idle worker's CPU, and therefore its attributed cost in M4, near zero,
 // which is what makes a scale-down visibly cheaper on the dashboard.
 func (q *Queue) Dequeue(ctx context.Context, timeout time.Duration) (Job, error) {
 	res, err := q.client.BRPop(ctx, timeout, Key).Result()

@@ -3,7 +3,7 @@
 // It reads usage from Prometheus, prices it with the platform's shared rate table, and
 // re-exposes the result as Prometheus metrics. Prometheus then scrapes it, which closes
 // the loop and lets M7 chart cost on the same time axis as the scaling events that caused
-// it — the correlation the whole platform is built to make visible.
+// it, the correlation the whole platform is built to make visible.
 //
 // It is strictly read-only (LLD §4.2). It observes and accounts; it never mutates a
 // workload, and it holds no permission to.
@@ -140,7 +140,7 @@ func collect(ctx context.Context, collector *attribution.Collector, interval tim
 			// A failed cycle leaves the previous gauge values in place rather than
 			// zeroing them. Zeroing would draw a cost cliff on the dashboard that looks
 			// exactly like a workload being deleted (LLD §4.5: a missed sample creates a
-			// gap, not a crash — and never a false reading).
+			// gap, not a crash, and never a false reading).
 			log.Error("collection cycle failed", "error", err)
 		} else {
 			// Reset before repopulating so a workload that has been deleted stops being

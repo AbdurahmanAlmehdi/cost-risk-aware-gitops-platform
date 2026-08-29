@@ -1,8 +1,8 @@
-# The demonstration dashboard — build component.
+# The demonstration dashboard, build component.
 #
 # Same shape as app/Dockerfile: static binary, distroless base, reproducible output. The
 # one difference is that the web assets are compiled into the binary with go:embed rather
-# than copied in. That is not a convenience — the manifest runs this with a read-only root
+# than copied in. That is not a convenience, the manifest runs this with a read-only root
 # filesystem and no shell, so there is no writable path to serve files from and no way to
 # alter what is served without producing a new digest.
 
@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 
 # --- runtime ----------------------------------------------------------------
 # distroless static: no shell, no package manager, no libc. This one matters more than
-# most — it is the image behind the only authenticated page the internet can reach, and
+# most. It is the image behind the only authenticated page the internet can reach, and
 # the project deliberately refused a web terminal. A base with no shell means there is no
 # shell to reach even if something else here were wrong.
 FROM gcr.io/distroless/static-debian12:nonroot

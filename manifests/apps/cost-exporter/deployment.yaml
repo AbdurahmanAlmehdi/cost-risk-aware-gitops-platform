@@ -1,7 +1,7 @@
-# M4 — live cost attribution.
+# M4, live cost attribution.
 #
 # Read-only by construction (LLD §4.2): it queries Prometheus over HTTP and holds no
-# Kubernetes credentials at all — no ServiceAccount token is mounted, so there is no API
+# Kubernetes credentials at all, no ServiceAccount token is mounted, so there is no API
 # it could mutate even if it wanted to. The module that reports on spend cannot influence
 # what is spent.
 apiVersion: apps/v1
@@ -15,7 +15,7 @@ metadata:
     app.kubernetes.io/part-of: gitops-platform
 spec:
   # One replica. Two would compute and publish identical series, and Prometheus would
-  # scrape both — doubling every cost figure on the dashboard.
+  # scrape both, doubling every cost figure on the dashboard.
   replicas: 1
   selector:
     matchLabels:

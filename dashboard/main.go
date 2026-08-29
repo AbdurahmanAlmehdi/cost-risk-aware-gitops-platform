@@ -9,8 +9,8 @@ package main
 //
 // It is deliberately NOT a web terminal. A browser shell on a host holding a cluster-admin
 // kubeconfig is a remote-execution endpoint wearing a friendly hat, and it was refused for
-// that reason. What exists instead is three fixed actions — read status, run the drift
-// proof, run the load proof — each a specific sequence of API calls with no caller-supplied
+// that reason. What exists instead is three fixed actions, read status, run the drift
+// proof, run the load proof. Each a specific sequence of API calls with no caller-supplied
 // command, path, or parameter. There is no shell path here even in principle, and the RBAC
 // this runs under permits exactly one write to the cluster.
 

@@ -22,7 +22,7 @@ var (
 	})
 
 	// QueueDepthScrapeErrors lets a dashboard distinguish "the queue is empty" from
-	// "we cannot see the queue" — two states that look identical on a depth gauge
+	// "we cannot see the queue", two states that look identical on a depth gauge
 	// alone and would otherwise cause M5 to scale to minimum during an outage.
 	QueueDepthScrapeErrors = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "app_queue_depth_scrape_errors_total",
@@ -45,7 +45,7 @@ var (
 		Buckets: prometheus.ExponentialBuckets(0.005, 2, 12), // 5ms .. ~20s
 	})
 
-	// JobWaitTime is the queueing delay — the metric that actually degrades under load
+	// JobWaitTime is the queueing delay, the metric that actually degrades under load
 	// and recovers after M5 scales up. It is the honest measure of whether autoscaling
 	// helped, whereas job duration stays flat no matter how backed up the queue is.
 	JobWaitTime = promauto.NewHistogram(prometheus.HistogramOpts{
