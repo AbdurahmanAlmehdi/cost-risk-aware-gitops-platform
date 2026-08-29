@@ -152,8 +152,24 @@ echo "-- dependencies outside the namespace --"
 # KEDA reads queue depth by connecting to Redis itself. This is checked explicitly because
 # omitting its allow-rule produces no error anywhere: the metric simply stops, the HPA
 # reads "unknown", and autoscaling quietly dies for a reason that lives in M6.
-KEDA_METRIC=$(kubectl -n "$NS" get hpa keda-hpa-demo-worker \
-  -o jsonpath='{.status.currentMetrics[0].external.current.value}' 2>/dev/null || true)
+#
+# Ask the external metrics API, not the HPA.
+#
+# The HPA's status.currentMetrics was the obvious source and the wrong one. It carries no
+# value while the scaler is inactive, which is the normal state of an idle queue, so the
+# check reported "autoscaling is dead" about a scaler that was working perfectly. It also
+# indexed [0] blindly across two triggers, redis and cpu, whose order is not guaranteed.
+# Both faults point the same way: absent because nothing is happening, read as absent
+# because nothing can connect.
+#
+# The external metrics API is what KEDA actually serves and what the HPA actually reads.
+# A value of 0 is a successful answer meaning an empty queue. Failing to reach Redis
+# produces no item at all, which is the condition this check exists to catch.
+METRIC=s0-redis-jobs-pending
+SELECTOR="scaledobject.keda.sh%2Fname%3D${DEPLOYMENT:-demo-worker}"
+KEDA_METRIC=$(kubectl get --raw \
+  "/apis/external.metrics.k8s.io/v1beta1/namespaces/${NS}/${METRIC}?labelSelector=${SELECTOR}" \
+  2>/dev/null | grep -o '"value":"[^"]*"' | head -1 || true)
 if [ -n "$KEDA_METRIC" ]; then
   printf "  %-56s %s\n" "keda -> redis (queue depth readable)" "ok"
   pass=$((pass + 1))
