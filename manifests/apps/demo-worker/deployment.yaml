@@ -76,6 +76,26 @@ spec:
               memory: 64Mi
             limits:
               memory: 128Mi
+              # Equal to the request, so a worker can never take more CPU than it was
+              # priced for.
+              #
+              # Without this the worker was capped on memory but unbounded on CPU, and its
+              # jobs are real work — work.Do() runs sha256 until the deadline rather than
+              # sleeping, deliberately, so the CPU trigger has something to read. Six of
+              # them on a four-core node therefore consumed every core the scheduler would
+              # give them, and Prometheus and Grafana were starved alongside everything
+              # else. The load test ran, the platform scaled correctly, and the dashboard
+              # the whole demonstration is watched on stopped answering.
+              #
+              # It also made the cost figures a fiction in the one direction that matters:
+              # M2 prices a replica at its request, so a workload free to exceed that
+              # request is one the estimate cannot bound. Requests are a scheduling hint,
+              # not a ceiling; this is the ceiling.
+              #
+              # Draining 600 jobs takes marginally longer capped at three cores than
+              # uncapped at four, which is a fair trade for a dashboard that survives the
+              # act it exists to illustrate.
+              cpu: 500m
           livenessProbe:
             httpGet:
               path: /healthz
