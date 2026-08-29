@@ -35,6 +35,32 @@ if [ -z "$MAX" ] || [ "$MAX" = "0" ]; then
   exit 1
 fi
 
+# On kind the API answers on the host because platform/kind/cluster.yaml maps the port.
+# No other cluster has that mapping, so on k3s or a managed cluster this test aborted at
+# its first request with "Is the port mapping up?" — a prerequisite failure worded as
+# though the platform were broken, and one that stops `make verify` before its last step.
+#
+# tools/port-forward.sh exists for this, but requiring a second terminal makes the
+# verification suite depend on a human having set it up. reconcile.sh already forwards
+# Prometheus for exactly this reason; the load test now does the same for the API, so it
+# is self-contained wherever it runs. An existing mapping is left alone.
+API_PF=""
+cleanup_api_pf() { if [ -n "$API_PF" ]; then kill "$API_PF" 2>/dev/null || true; fi; }
+trap cleanup_api_pf EXIT
+
+if ! curl -sf --max-time 3 "${API}/api/queue" >/dev/null 2>&1; then
+  API_PORT=${API##*:}
+  echo "    no host mapping at ${API}; forwarding svc/demo-api"
+  kubectl -n "$NS" port-forward svc/demo-api "${API_PORT}:8080" >/dev/null 2>&1 &
+  API_PF=$!
+  # Poll rather than sleeping a fixed guess: the forward is usually ready in well under a
+  # second, but a cold Service can take several.
+  for _ in $(seq 1 30); do
+    curl -sf --max-time 2 "${API}/api/queue" >/dev/null 2>&1 && break
+    sleep 1
+  done
+fi
+
 echo "==> elasticity test on ${NS}/${DEPLOYMENT}  (bounds: ${MIN}–${MAX} replicas)"
 START_REPLICAS=$(replicas)
 echo "    starting at ${START_REPLICAS} replica(s), queue depth $(depth)"
@@ -56,7 +82,9 @@ assert_bounds() {
 echo
 echo "--> enqueuing ${JOBS} jobs of ${JOB_MS}ms"
 curl -sf -X POST "${API}/api/jobs?count=${JOBS}&duration_ms=${JOB_MS}" >/dev/null || {
-  echo "FAIL: could not reach the API at ${API}. Is the port mapping up?"
+  echo "FAIL: could not reach the API at ${API}, and forwarding svc/demo-api did not help."
+  echo "      Check that demo-api is running and its Service has endpoints:"
+  echo "        kubectl -n ${NS} get endpoints demo-api"
   exit 1
 }
 echo "    queue depth is now $(depth)"
