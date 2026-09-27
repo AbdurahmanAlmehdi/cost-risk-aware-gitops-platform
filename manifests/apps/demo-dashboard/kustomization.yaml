@@ -28,4 +28,4 @@ images:
     #
     # This is the one line CI rewrites when publishing a new image, which keeps an image
     # update a one-line, reviewable diff that passes through the gate like any other change.
-    digest: sha256:1ad9fc120f1eadfb1d5fad9fe57ec4a52a1afc03c104cb4424b36402fc015913
+    digest: sha256:acbe9f5553058393a2f1960b125f22fb58afb3e7087d8634f823fa2866a71a1b
