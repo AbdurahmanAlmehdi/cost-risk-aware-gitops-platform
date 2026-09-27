@@ -68,7 +68,7 @@ cluster-status: ## Show node and system-pod state
 # -----------------------------------------------------------------------------
 # AWS review host, start it to review, stop it after
 # -----------------------------------------------------------------------------
-.PHONY: demo-host-start demo-host-stop demo-host-status demo-host-allow
+.PHONY: demo-host-start demo-host-stop demo-host-status demo-host-allow demo-host-reconnect
 demo-host-start: ## Start the AWS review host (billing resumes)
 	@bash tools/demo-host.sh start
 
@@ -77,6 +77,10 @@ demo-host-stop: ## Stop the AWS review host (billing stops; disk persists)
 
 demo-host-status: ## Show state, address and month-to-date spend against the cap
 	@bash tools/demo-host.sh status
+
+demo-host-reconnect: ## Point the power switch at a rebuilt host: make demo-host-reconnect INSTANCE=i-...
+	@test -n "$(INSTANCE)" || { echo "usage: make demo-host-reconnect INSTANCE=i-..."; exit 1; }
+	@bash tools/reconnect-power.sh "$(INSTANCE)"
 
 demo-host-allow: ## Grant a reviewer access: make demo-host-allow IP=1.2.3.4
 	@test -n "$(IP)" || { echo "usage: make demo-host-allow IP=<address>"; exit 1; }

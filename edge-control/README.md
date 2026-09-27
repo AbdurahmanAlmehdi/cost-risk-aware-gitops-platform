@@ -96,6 +96,29 @@ State, address, and what it is costing right now. When the instance is stopped, 
 Start is enabled; when it is running, only Stop. After either button the page polls until
 the instance settles, so the state shown is the state that exists.
 
+## When the host is rebuilt
+
+The review host is disposable, and every restore produces a new instance id. That id
+appears in **four** places that must agree, three of them outside this directory:
+
+| Where | What breaks if it is stale |
+|---|---|
+| The IAM inline policy | The only thing that actually gates the call. AWS answers "You are not authorized to perform this operation" and says nothing about which id it disagreed with. |
+| `INSTANCE_ID` in `wrangler.toml` | The button asks about a machine that no longer exists. |
+| The budget's stop action | The $40 cap's emergency brake fails at exactly the moment it is meant to work. |
+| `tools/demo-host.sh` | The same switch from a terminal. |
+
+Nothing errors loudly when they disagree: the page loads, the button looks live, and
+pressing it fails in a way that reads like a broken credential rather than a stale id.
+
+```bash
+tools/reconnect-power.sh <new-instance-id>
+```
+
+updates all four, proves the IAM change with `simulate-principal-policy` before trusting
+it, and redeploys the Worker. Deploying does not disturb the two secrets. See
+[`docs/RESTORE-HOST.md`](../docs/RESTORE-HOST.md) for rebuilding the host itself.
+
 ## Notes
 
 The Worker signs its own AWS requests rather than importing an SDK, which keeps the whole
