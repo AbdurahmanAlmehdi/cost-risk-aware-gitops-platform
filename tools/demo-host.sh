@@ -11,7 +11,7 @@
 # budget's stop action at 100% of the cap, and this script.
 set -euo pipefail
 
-INSTANCE=${INSTANCE:-i-054dedc804b0ca4e0}
+INSTANCE=${INSTANCE:-i-0fbd33346d1fccc78}
 REGION=${REGION:-eu-central-1}
 HOURLY=0.2415
 

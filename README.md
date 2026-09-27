@@ -283,6 +283,8 @@ tools/                  The proofs, and the operational scripts.
   connectivity-matrix.sh  Asserts the allow and deny matrix pair by pair.
   load-test.sh            Drives demand and proves the worker tier scales and drains.
   demo-host.sh            Starts, stops and prices the review host.
+  reconnect-power.sh      Points the switch at a rebuilt host. The id lives in four
+                          places; this is the one command that changes all of them.
   edge-routes.sh          Points the demonstration hostnames at the tunnel.
   edge-secrets.sh         Installs the tunnel token into the cluster.
   bump-digests.sh         Rewrites pinned image digests after a publish.
@@ -293,6 +295,8 @@ edge-control/           A power switch for the review host, deployed to Cloudfla
 docs/
   LLD.md                  The specification: modules M1 to M8 and their contracts.
   DEMO.md                 The runbook. Six acts, with what to say during each.
+  RESTORE-HOST.md         How to bring the review host back from its snapshot, and the
+                          exact spec to rebuild it with.
   adr/                    Decisions and why they went the way they did.
 
 gate.yaml               Every value that can change a verdict, in version control.
