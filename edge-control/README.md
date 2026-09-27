@@ -37,7 +37,7 @@ aws iam put-user-policy --user-name gitops-platform-power \
       {
         "Effect": "Allow",
         "Action": ["ec2:StartInstances", "ec2:StopInstances"],
-        "Resource": "arn:aws:ec2:eu-central-1:240571106679:instance/i-054dedc804b0ca4e0"
+        "Resource": "arn:aws:ec2:eu-central-1:240571106679:instance/i-0fbd33346d1fccc78"
       },
       {
         "Effect": "Allow",

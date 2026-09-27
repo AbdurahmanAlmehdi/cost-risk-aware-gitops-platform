@@ -106,18 +106,87 @@ Deploying does not disturb the two Worker secrets.
 
 Then commit the three files it changed.
 
-### 4. Check it came back
+### 4. Fix what the disk remembers about the old machine
+
+**This is the step that is easy to miss, and it presents as a 502.** k3s stores
+its state on the restored disk, and that state describes the *previous* machine.
+The instance comes up, k3s runs, `cloudflared` connects to the tunnel — and every
+hostname still 502s, because Caddy's upstreams were never scheduled.
+
+Three things need correcting, in this order. All of them were hit on 2026-09-27.
+
+**a. Re-apply the node label.** Nine manifests carry
+`nodeSelector: workload=platform`. That label was on the old node object, and a
+rebuilt host registers as a *new* node without it — its private IP changes, so
+k3s picks a new node name. ArgoCD, Grafana, KEDA, Prometheus and the cost
+exporter all sit `Pending` with
+`didn't match Pod's node affinity/selector`, while `caddy` and `cloudflared`
+(which have no selector) run happily and make the cluster look healthy.
+
+```bash
+sudo k3s kubectl label node "$(hostname)" workload=platform --overwrite
+```
+
+**b. Delete the old node object.** `kubectl get nodes` shows two control-planes,
+the old one `NotReady` and 31 days old. Its pods sit in `Terminating` forever —
+nothing is left to confirm the delete — and a `Terminating` StatefulSet pod
+blocks its replacement, because StatefulSet identities are unique. That is what
+keeps `argocd-application-controller-0` and Prometheus down.
+
+```bash
+sudo k3s kubectl delete node <old-node-name>
+sudo k3s kubectl get pods -A --no-headers | awk '$4=="Terminating"{print $1, $2}' \
+  | while read ns p; do sudo k3s kubectl -n "$ns" delete pod "$p" --force --grace-period=0; done
+```
+
+`--force` is normally dangerous on a StatefulSet pod because two copies could run
+at once. It is safe *here*, and only here, because the node those pods belonged
+to is a terminated EC2 instance: nothing is still running them.
+
+**c. Re-adopt the Prometheus volume.** local-path pins each PV to a node with
+`nodeAffinity`, and that field is **immutable** — you cannot simply repoint it:
+
+```
+field is immutable, except for updating from beta label to GA
+```
+
+The data is still on the disk at `/var/lib/rancher/k3s/storage/<pvc>_.../`. The
+reclaim policy is `Delete`, so **set it to `Retain` before deleting anything**,
+or the claim takes the directory with it. Then delete the PVC and PV, create a
+replacement PV with the same `local.path`, the live node's affinity, and a
+`claimRef` naming the PVC the StatefulSet will recreate — the `claimRef`
+pre-binds it so the dynamic provisioner cannot race in with an empty volume.
+
+Expect the metrics themselves to be gone anyway: Prometheus enforces its
+retention window at startup, and a host that has been off for weeks is past it.
+111 MB became 78 MB of WAL on the 2026-09-27 restore. The point of preserving the
+volume is a clean start, not the history.
+
+### 5. Check it came back
 
 ```bash
 make demo-host-status
 ```
 
-k3s starts on boot, so ArgoCD, Grafana and the exporter should come up without
-help. Give it a couple of minutes, then open the three hostnames. The public
+k3s starts on boot, but see step 4 — "up" is not the same as "scheduled". The
+check that actually means something is the origin answering, and every ArgoCD
+application being healthy:
+
+```bash
+sudo k3s kubectl get pods -A | grep -v Running        # expect nothing interesting
+sudo k3s kubectl -n argocd get applications           # expect Synced + Healthy
+for h in gitops argocd grafana; do
+  curl -s -o /dev/null -w "$h %{http_code}\n" \
+    -H "Host: $h.abdurahman.ly" "http://$(sudo k3s kubectl -n edge get svc caddy \
+      -o jsonpath='{.spec.clusterIP}'):8080/"
+done                                                  # expect 200 200 302
+```
+
+Grafana answering 302 is correct — it redirects to its login page. The public
 address changes on every start, so reviewers need
 `make demo-host-allow IP=<address>` again.
 
-### 5. Stop it
+### 6. Stop it
 
 ```bash
 make demo-host-stop
